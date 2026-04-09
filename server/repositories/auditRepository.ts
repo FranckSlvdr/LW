@@ -72,31 +72,26 @@ export async function listAuditLogs(
 ): Promise<{ logs: AuditLog[]; total: number }> {
   const { action, entityType, userId, limit = 50, offset = 0 } = filter
 
-  // Build WHERE fragments dynamically
+  // Single query: window function returns total alongside each row.
+  // Eliminates the second COUNT(*) round-trip and the duplicated WHERE logic.
+  // idx_audit_logs_action_time / idx_audit_logs_entity_type_time support this.
   const rows = await sql`
-    SELECT *
+    SELECT *, COUNT(*) OVER ()::int AS total_count
     FROM audit_logs
     WHERE TRUE
-      ${action     ? sql`AND action       = ${action}`          : sql``}
-      ${entityType ? sql`AND entity_type  = ${entityType}`      : sql``}
-      ${userId     ? sql`AND user_id      = ${userId}::uuid`    : sql``}
+      ${action     ? sql`AND action      = ${action}`       : sql``}
+      ${entityType ? sql`AND entity_type = ${entityType}`   : sql``}
+      ${userId     ? sql`AND user_id     = ${userId}::uuid` : sql``}
     ORDER BY created_at DESC
     LIMIT  ${limit}
     OFFSET ${offset}
   `
 
-  const countRows = await sql`
-    SELECT COUNT(*)::int AS n
-    FROM audit_logs
-    WHERE TRUE
-      ${action     ? sql`AND action       = ${action}`          : sql``}
-      ${entityType ? sql`AND entity_type  = ${entityType}`      : sql``}
-      ${userId     ? sql`AND user_id      = ${userId}::uuid`    : sql``}
-  `
+  const total = (rows[0] as unknown as { total_count?: number } | undefined)?.total_count ?? 0
 
   return {
     logs:  rows.map(toAuditLog),
-    total: countRows[0].n as number,
+    total,
   }
 }
 

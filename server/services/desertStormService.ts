@@ -1,5 +1,5 @@
 import 'server-only'
-import { findDsScoresByWeek, upsertDsScore, deleteDsScore } from '@/server/repositories/desertStormRepository'
+import { findDsScoresByWeek, upsertDsScoreWithRank, deleteDsScore } from '@/server/repositories/desertStormRepository'
 import { findPlayerById } from '@/server/repositories/playerRepository'
 import { findWeekById } from '@/server/repositories/weekRepository'
 import { NotFoundError, ValidationError } from '@/lib/errors'
@@ -27,11 +27,8 @@ export async function upsertDsScoreForPlayer(input: UpsertDesertStormInput): Pro
 
   if (input.score < 0) throw new ValidationError('score must be ≥ 0')
 
-  const saved = await upsertDsScore(input.playerId, input.weekId, input.score)
-
-  // Re-fetch to get rank
-  const all = await getDsScoresForWeek(input.weekId)
-  const rank = all.findIndex((r) => r.playerId === input.playerId) + 1
+  // Upsert + rank computed in one SQL query — no separate re-fetch of all rows
+  const saved = await upsertDsScoreWithRank(input.playerId, input.weekId, input.score)
 
   return {
     id:          saved.id,
@@ -40,7 +37,7 @@ export async function upsertDsScoreForPlayer(input: UpsertDesertStormInput): Pro
     playerAlias: player.alias,
     weekId:      saved.weekId,
     score:       saved.score,
-    rank:        rank > 0 ? rank : 1,
+    rank:        saved.rank,
   }
 }
 

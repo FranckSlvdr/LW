@@ -1,5 +1,5 @@
 import { getSessionUser } from '@/server/security/authGuard'
-import { listUsers, countUsers } from '@/server/repositories/userRepository'
+import { listUsers } from '@/server/repositories/userRepository'
 import { getRecentAuditLogs } from '@/server/repositories/auditRepository'
 
 const ACTION_LABEL: Record<string, string> = {
@@ -30,12 +30,13 @@ const ACTION_COLOR: Record<string, string> = {
 }
 
 export default async function AdminPage() {
-  const [user, users, total, recentLogs] = await Promise.all([
+  const [user, users, recentLogs] = await Promise.all([
     getSessionUser(),
     listUsers(),
-    countUsers(),
     getRecentAuditLogs(8),
   ])
+  // total derived from the already-fetched list — no separate COUNT(*) needed
+  const total = users.length
 
   const byRole = {
     super_admin: users.filter((u) => u.role === 'super_admin').length,

@@ -1,5 +1,5 @@
 import 'server-only'
-import { findContributionsByWeek, upsertContribution, deleteContribution } from '@/server/repositories/contributionRepository'
+import { findContributionsByWeek, upsertContributionWithRank, deleteContribution } from '@/server/repositories/contributionRepository'
 import { findPlayerById } from '@/server/repositories/playerRepository'
 import { findWeekById } from '@/server/repositories/weekRepository'
 import { NotFoundError, ValidationError } from '@/lib/errors'
@@ -28,9 +28,8 @@ export async function upsertPlayerContribution(input: UpsertContributionInput): 
 
   if (input.amount < 0) throw new ValidationError('amount must be ≥ 0')
 
-  const saved = await upsertContribution(input.playerId, input.weekId, input.amount, input.note)
-  const all   = await getContributionsForWeek(input.weekId)
-  const rank  = all.findIndex((r) => r.playerId === input.playerId) + 1
+  // Upsert + rank computed in one SQL query — no separate re-fetch of all rows
+  const saved = await upsertContributionWithRank(input.playerId, input.weekId, input.amount, input.note)
 
   return {
     id:          saved.id,
@@ -40,7 +39,7 @@ export async function upsertPlayerContribution(input: UpsertContributionInput): 
     weekId:      saved.weekId,
     amount:      saved.amount,
     note:        saved.note,
-    rank:        rank > 0 ? rank : 1,
+    rank:        saved.rank,
   }
 }
 

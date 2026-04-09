@@ -76,6 +76,43 @@ export async function upsertContribution(
   return toDomain(row)
 }
 
+/**
+ * Upserts a contribution and returns the player's rank in one query.
+ *
+ * Uses a CTE + correlated subquery so the rank is computed in SQL without a
+ * separate re-fetch of all rows.  The correlated subquery uses the existing
+ * idx_contributions_week index on (week_id, amount DESC).
+ *
+ * Ranking semantics: RANK()-style — ties share the same rank.
+ */
+export async function upsertContributionWithRank(
+  playerId: number,
+  weekId: number,
+  amount: number,
+  note?: string,
+): Promise<Contribution & { rank: number }> {
+  const [row] = await db<Array<ContribRow & { rank: number }>>`
+    WITH upserted AS (
+      INSERT INTO contributions (player_id, week_id, amount, note, updated_at)
+      VALUES (${playerId}, ${weekId}, ${amount}, ${note ?? null}, NOW())
+      ON CONFLICT (player_id, week_id)
+      DO UPDATE SET amount = EXCLUDED.amount, note = EXCLUDED.note, updated_at = NOW()
+      RETURNING *
+    )
+    SELECT
+      u.*,
+      (
+        SELECT COUNT(*)::int + 1
+        FROM   contributions
+        WHERE  week_id = ${weekId}
+        AND    amount  > u.amount
+      ) AS rank
+    FROM upserted u
+  `
+  if (!row) throw new Error('upsertContributionWithRank: no row returned')
+  return { ...toDomain(row), rank: row.rank }
+}
+
 export async function deleteContribution(playerId: number, weekId: number): Promise<void> {
   await db`
     DELETE FROM contributions

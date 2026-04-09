@@ -81,6 +81,42 @@ export async function upsertDsScore(
   return toDomain(row)
 }
 
+/**
+ * Upserts a Desert Storm score and returns the player's rank in one query.
+ *
+ * Uses a CTE + correlated subquery so the rank is computed in SQL without a
+ * separate re-fetch of all rows.  The correlated subquery uses the existing
+ * idx_ds_scores_week index on (week_id, score DESC).
+ *
+ * Ranking semantics: RANK()-style — ties share the same rank.
+ */
+export async function upsertDsScoreWithRank(
+  playerId: number,
+  weekId: number,
+  score: number,
+): Promise<DesertStormScore & { rank: number }> {
+  const [row] = await db<Array<DsRow & { rank: number }>>`
+    WITH upserted AS (
+      INSERT INTO desert_storm_scores (player_id, week_id, score, updated_at)
+      VALUES (${playerId}, ${weekId}, ${score}, NOW())
+      ON CONFLICT (player_id, week_id)
+      DO UPDATE SET score = EXCLUDED.score, updated_at = NOW()
+      RETURNING *
+    )
+    SELECT
+      u.*,
+      (
+        SELECT COUNT(*)::int + 1
+        FROM   desert_storm_scores
+        WHERE  week_id = ${weekId}
+        AND    score   > u.score
+      ) AS rank
+    FROM upserted u
+  `
+  if (!row) throw new Error('upsertDsScoreWithRank: no row returned')
+  return { ...toDomain(row), rank: row.rank }
+}
+
 export async function deleteDsScore(playerId: number, weekId: number): Promise<void> {
   await db`
     DELETE FROM desert_storm_scores
