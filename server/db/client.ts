@@ -99,9 +99,15 @@ function createClient(): ReturnType<typeof postgres> {
     // exhausting the DB connection limit (Supabase free tier: 100 max).
     max: process.env.VERCEL ? 3 : 10,
     idle_timeout: 20,
-    connect_timeout: 10,
+    connect_timeout: 30,
     // Transaction pooler (Supabase Supavisor port 6543) does not support prepared statements.
     prepare: !process.env.VERCEL,
+    // Supabase free tier applies a session-level statement_timeout that fires
+    // from when the pooler receives the connection — not when PostgreSQL starts
+    // executing. Vercel cold starts eat into this budget, causing spurious
+    // "canceling statement due to statement timeout" errors. Disable it here
+    // so only the Supabase admin-level timeout (which fires later) applies.
+    connection: process.env.VERCEL ? { statement_timeout: 0 } : {},
   })
 }
 
