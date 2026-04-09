@@ -1,0 +1,6 @@
+name,current_rank,is_active
+Jean Dupont,R4,TRUE
+Marie Martin,R3,TRUE
+Pierre Bernard,R1,FALSE
+Sophie Leclerc,R3,TRUE
+Alex Nouveau,,TRUE

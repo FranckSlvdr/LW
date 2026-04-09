@@ -1,26 +1,196 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ─── Design tokens ─────────────────────────────────────────────────────────── */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Backgrounds */
+  --color-bg-base:         #08080e;
+  --color-surface:         #10101a;
+  --color-surface-raised:  #16162a;
+  --color-surface-hover:   #1c1c30;
+
+  /* Borders */
+  --color-border:          #1e1e32;
+  --color-border-subtle:   #16162a;
+
+  /* Text */
+  --color-text-primary:    #f0f0fa;
+  --color-text-secondary:  #7878a0;
+  --color-text-muted:      #4a4a6a;
+
+  /* Accent */
+  --color-accent:          #4f79ff;
+  --color-accent-hover:    #6b8fff;
+  --color-accent-dim:      #1a2a5e;
+
+  /* Semantic */
+  --color-success:         #22c55e;
+  --color-success-dim:     #052e16;
+  --color-warning:         #f59e0b;
+  --color-warning-dim:     #1c0f00;
+  --color-danger:          #ef4444;
+  --color-danger-dim:      #1c0000;
+  --color-info:            #38bdf8;
+  --color-info-dim:        #082032;
+
+  /* Fonts */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─── Base ───────────────────────────────────────────────────────────────────── */
+
+html {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+  background-color: var(--color-bg-base);
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar             { width: 6px; height: 6px; }
+::-webkit-scrollbar-track       { background: var(--color-surface); }
+::-webkit-scrollbar-thumb       { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+/* ─── Typography utilities ───────────────────────────────────────────────────── */
+
+.label-sm { font-size: 0.7rem;  font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+.label-xs { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-muted); }
+
+/* ─── Focus ring ─────────────────────────────────────────────────────────────── */
+
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Keyframe animations ────────────────────────────────────────────────────── */
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position:  200% center; }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* ─── Animation utilities ────────────────────────────────────────────────────── */
+
+.animate-fade-in-up { animation: fade-in-up 0.35s ease both; }
+.animate-fade-in    { animation: fade-in    0.25s ease both; }
+.animate-scale-in   { animation: scale-in   0.2s  ease both; }
+.animate-pulse-dot  { animation: pulse-dot  2s    ease-in-out infinite; }
+
+/* Staggered grid entrance */
+.stagger > *:nth-child(1) { animation: fade-in-up 0.35s ease both   0ms; }
+.stagger > *:nth-child(2) { animation: fade-in-up 0.35s ease both  60ms; }
+.stagger > *:nth-child(3) { animation: fade-in-up 0.35s ease both 120ms; }
+.stagger > *:nth-child(4) { animation: fade-in-up 0.35s ease both 180ms; }
+.stagger > *:nth-child(5) { animation: fade-in-up 0.35s ease both 240ms; }
+
+/* ─── Gradient utilities ─────────────────────────────────────────────────────── */
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-hover));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-surface-accent {
+  background: linear-gradient(
+    140deg,
+    rgba(79, 121, 255, 0.12) 0%,
+    rgba(79, 121, 255, 0.04) 100%
+  );
+}
+
+/* ─── Card elevation ─────────────────────────────────────────────────────────── */
+
+.card-shadow {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.card-shadow-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.card-shadow-hover:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25);
+  transform: translateY(-1px);
+}
+
+.card-glow-accent {
+  box-shadow:
+    0 0 0 1px rgba(79, 121, 255, 0.25),
+    0 4px 24px rgba(79, 121, 255, 0.10);
+}
+
+/* ─── CSS-only tooltip ───────────────────────────────────────────────────────── */
+
+.has-tooltip {
+  position: relative;
+}
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.4;
+  padding: 5px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 50;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+}
+.has-tooltip:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* ─── Shimmer skeleton ───────────────────────────────────────────────────────── */
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-surface-hover)  50%,
+    var(--color-surface-raised) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
 }
