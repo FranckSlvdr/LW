@@ -9,10 +9,10 @@ const MATRIX: Record<Permission, UserRole[]> = {
   'scores:import':  ['super_admin', 'admin', 'manager'],
   'scores:edit':    ['super_admin', 'admin', 'manager'],
   'trains:trigger':    ['super_admin', 'admin', 'manager'],
-  'trains:configure':  ['super_admin', 'admin'],
-  'players:manage':    ['super_admin', 'admin'],
-  'rating:configure':  ['super_admin', 'admin'],
-  'rating:recalculate':['super_admin', 'admin'],
+  'trains:configure':  ['super_admin', 'admin', 'manager'],
+  'players:manage':    ['super_admin', 'admin', 'manager'],
+  'rating:configure':  ['super_admin', 'admin', 'manager'],
+  'rating:recalculate':['super_admin', 'admin', 'manager'],
   'audit:view':        ['super_admin', 'admin'],
   'admin:view':        ['super_admin', 'admin'],
   'users:invite':      ['super_admin', 'admin'],
@@ -89,7 +89,7 @@ export default function RolesPage() {
             <p className={`text-sm font-semibold capitalize ${ROLE_COLOR[role]}`}>{role.replace('_', ' ')}</p>
             <p className="text-xs text-[var(--color-text-muted)] mt-1">
               {role === 'viewer'      && 'Lecture seule. Peut consulter le dashboard et le classement.'}
-              {role === 'manager'     && 'Peut importer, éditer les scores et déclencher les trains.'}
+              {role === 'manager'     && 'Peut importer, éditer les scores, gérer les joueurs, configurer trains et notation.'}
               {role === 'admin'       && 'Gère les joueurs, la notation et peut inviter des utilisateurs.'}
               {role === 'super_admin' && 'Accès complet. Seul à pouvoir promouvoir en admin ou super_admin.'}
             </p>

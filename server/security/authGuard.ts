@@ -21,12 +21,12 @@ const PERMISSION_MATRIX: Record<Permission, UserRole[]> = {
 
   // Train operations
   'trains:trigger':    ['super_admin', 'admin', 'manager'],
-  'trains:configure':  ['super_admin', 'admin'],
+  'trains:configure':  ['super_admin', 'admin', 'manager'],
 
   // Admin-only
-  'players:manage':     ['super_admin', 'admin'],
-  'rating:configure':   ['super_admin', 'admin'],
-  'rating:recalculate': ['super_admin', 'admin'],
+  'players:manage':     ['super_admin', 'admin', 'manager'],
+  'rating:configure':   ['super_admin', 'admin', 'manager'],
+  'rating:recalculate': ['super_admin', 'admin', 'manager'],
   'audit:view':         ['super_admin', 'admin'],
 
   // User management
