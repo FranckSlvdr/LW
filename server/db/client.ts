@@ -100,6 +100,8 @@ function createClient(): ReturnType<typeof postgres> {
     max: process.env.VERCEL ? 3 : 10,
     idle_timeout: 20,
     connect_timeout: 10,
+    // Transaction pooler (Supabase Supavisor port 6543) does not support prepared statements.
+    prepare: !process.env.VERCEL,
   })
 }
 
