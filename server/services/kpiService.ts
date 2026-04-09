@@ -8,6 +8,7 @@ import { generateInsights } from '@/server/engines/insightEngine'
 import { NotFoundError } from '@/lib/errors'
 import { APP_CONFIG } from '@/config/app.config'
 import { getLocale, getDict } from '@/lib/i18n/server'
+import { perf } from '@/lib/perf'
 import type { PlayerKpi, WeekKpiSummary, WeekDelta, Insight } from '@/types/api'
 
 // ─── Public return type ───────────────────────────────────────────────────────
@@ -31,16 +32,18 @@ export interface DashboardData {
  *  4. Assemble the response
  */
 export async function getDashboardData(weekId: number): Promise<DashboardData> {
-  const week = await findWeekById(weekId)
-  if (!week) throw new NotFoundError('Week', weekId)
+  const done = perf('kpiService.getDashboardData')
 
-  // Load players, current scores, eco days and all weeks in parallel
-  const [players, currentScores, ecoDays, allWeeks] = await Promise.all([
+  // Load week metadata, players, scores, eco days, and all weeks in parallel
+  // (findWeekById was previously sequential before this group — now runs concurrently)
+  const [week, players, currentScores, ecoDays, allWeeks] = await Promise.all([
+    findWeekById(weekId),
     findAllPlayers(),
     findScoresByWeek(weekId),
     findVsDaysByWeekAsMap(weekId),
     findAllWeeks(),
   ])
+  if (!week) throw new NotFoundError('Week', weekId)
 
   // Find the previous week (the one immediately before this one)
   const sorted = allWeeks
@@ -122,6 +125,7 @@ export async function getDashboardData(weekId: number): Promise<DashboardData> {
     dict.insights,
   )
 
+  done()
   return { summary, allKpis, insights }
 }
 

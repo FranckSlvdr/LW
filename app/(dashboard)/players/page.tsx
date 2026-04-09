@@ -1,15 +1,17 @@
 import { TopBar } from '@/components/layout/TopBar'
 import { PlayersTable } from '@/features/players/components/PlayersTable'
 import { getAllPlayers } from '@/server/services/playerService'
-import { getAllWeeks } from '@/server/services/weekService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
+import { perf } from '@/lib/perf'
 import { PLAYER_RANKS } from '@/types/domain'
+import type { WeekApi } from '@/types/api'
 
 export default async function PlayersPage() {
-  const [locale, weeks, allPlayers, user] = await Promise.all([
+  const done = perf('PlayersPage')
+  // getAllWeeks removed — TopBar has showWeekSelector=false, weeks are never rendered
+  const [locale, allPlayers, user] = await Promise.all([
     getLocale(),
-    getAllWeeks(),
     getAllPlayers(false),
     getSessionUser(),
   ])
@@ -27,9 +29,10 @@ export default async function PlayersPage() {
     return acc
   }, {})
 
+  done()
   return (
     <>
-      <TopBar weeks={weeks} selectedWeekId={weeks[0]?.id ?? 0} title={dict.nav.players} showWeekSelector={false} />
+      <TopBar weeks={[] as WeekApi[]} selectedWeekId={0} title={dict.nav.players} showWeekSelector={false} />
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-[1200px] mx-auto px-6 py-6 space-y-6">
 

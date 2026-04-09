@@ -7,23 +7,33 @@ import { getAllPlayers } from '@/server/services/playerService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { formatScore } from '@/lib/utils'
 import { getLocale, getDict } from '@/lib/i18n/server'
+import { perf } from '@/lib/perf'
 
 interface PageProps {
   searchParams: Promise<{ weekId?: string }>
 }
 
 export default async function ContributionPage({ searchParams }: PageProps) {
+  const done = perf('ContributionPage')
   const { weekId: weekIdParam } = await searchParams
-  const locale = await getLocale()
-  const dict   = await getDict(locale)
-  const t      = dict.contribution
-  const [weeks, players, user] = await Promise.all([getAllWeeks(), getAllPlayers(true), getSessionUser()])
+
+  // Merge locale into the parallel group — eliminates 2 sequential awaits before DB calls
+  // (was: locale → dict → [weeks, players, user])
+  const [locale, weeks, players, user] = await Promise.all([
+    getLocale(),
+    getAllWeeks(),
+    getAllPlayers(true),
+    getSessionUser(),
+  ])
+  const dict = await getDict(locale)
+  const t    = dict.contribution
   const canEdit = user ? hasPermission(user.role, 'scores:edit') : false
 
   const selectedWeekId = weekIdParam ? Number(weekIdParam) : weeks[0]?.id ?? 0
   const validWeekId    = weeks.find((w) => w.id === selectedWeekId)?.id ?? weeks[0]?.id ?? 0
 
   const contributions = validWeekId ? await getContributionsForWeek(validWeekId) : []
+  done()
 
   const totalAmount = contributions.reduce((s, c) => s + c.amount, 0)
   const avgAmount   = contributions.length > 0 ? Math.round(totalAmount / contributions.length) : 0

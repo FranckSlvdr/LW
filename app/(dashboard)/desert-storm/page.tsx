@@ -7,22 +7,28 @@ import { getAllWeeks } from '@/server/services/weekService'
 import { getAllPlayers } from '@/server/services/playerService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
+import { perf } from '@/lib/perf'
 
 interface PageProps {
   searchParams: Promise<{ weekId?: string }>
 }
 
 export default async function DesertStormPage({ searchParams }: PageProps) {
+  const done = perf('DesertStormPage')
   const { weekId: weekIdParam } = await searchParams
-  const locale = await getLocale()
-  const dict   = await getDict(locale)
-  const t      = dict.desertStorm
-  const [weeks, players, trainSettings, user] = await Promise.all([
+
+  // Merge locale into the parallel group — getDict still needs locale but locale
+  // is a header read (~0ms), so it resolves well before the DB calls finish.
+  // (was: locale → dict → [weeks, players, trainSettings, user])
+  const [locale, weeks, players, trainSettings, user] = await Promise.all([
+    getLocale(),
     getAllWeeks(),
     getAllPlayers(true),
     getTrainSettings(),
     getSessionUser(),
   ])
+  const dict = await getDict(locale)
+  const t    = dict.desertStorm
   const canEdit = user ? hasPermission(user.role, 'scores:edit') : false
 
   const selectedWeekId = weekIdParam ? Number(weekIdParam) : weeks[0]?.id ?? 0
@@ -30,6 +36,7 @@ export default async function DesertStormPage({ searchParams }: PageProps) {
 
   const scores = validWeekId ? await getDsScoresForWeek(validWeekId) : []
   const missing = Math.max(0, players.length - scores.length)
+  done()
 
   return (
     <>

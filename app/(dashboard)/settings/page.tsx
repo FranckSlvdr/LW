@@ -1,23 +1,26 @@
 import { TopBar } from '@/components/layout/TopBar'
 import { TrainSettingsPanel } from '@/features/trains/components/TrainSettingsPanel'
 import { getTrainSettings } from '@/server/services/trainService'
-import { getAllWeeks } from '@/server/services/weekService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
+import { perf } from '@/lib/perf'
+import type { WeekApi } from '@/types/api'
 
 export default async function SettingsPage() {
-  const [locale, weeks, settings, user] = await Promise.all([
+  const done = perf('SettingsPage')
+  // getAllWeeks removed — TopBar has showWeekSelector=false, weeks are never rendered
+  const [locale, settings, user] = await Promise.all([
     getLocale(),
-    getAllWeeks(),
     getTrainSettings(),
     getSessionUser(),
   ])
   const canConfigure = user ? hasPermission(user.role, 'trains:configure') : false
   const dict = await getDict(locale)
+  done()
 
   return (
     <>
-      <TopBar weeks={weeks} selectedWeekId={weeks[0]?.id ?? 0} title={dict.nav.settings} showWeekSelector={false} />
+      <TopBar weeks={[] as WeekApi[]} selectedWeekId={0} title={dict.nav.settings} showWeekSelector={false} />
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-[900px] mx-auto px-6 py-6 space-y-6">
 

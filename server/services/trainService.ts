@@ -12,7 +12,8 @@ import { findTopContributors } from '@/server/repositories/contributionRepositor
 import { findTopVsScorers } from '@/server/repositories/scoreRepository'
 import { runTrainSelection } from '@/server/engines/trainEngine'
 import { NotFoundError } from '@/lib/errors'
-import type { TrainSettings, TrainDay, TrainRun } from '@/types/domain'
+import { perf } from '@/lib/perf'
+import type { Player, TrainSettings, TrainDay, TrainRun } from '@/types/domain'
 import type { TrainSettingsApi, TrainRunApi, UpdateTrainSettingsInput, TriggerTrainRunInput } from '@/types/api'
 
 // ─── DAY_LABELS ───────────────────────────────────────────────────────────────
@@ -55,27 +56,40 @@ function toSettingsApi(s: TrainSettings): TrainSettingsApi {
 // ─── Runs ─────────────────────────────────────────────────────────────────────
 
 export async function getTrainRunsForWeek(weekId: number): Promise<TrainRunApi[]> {
-  const week = await findWeekById(weekId)
+  const done = perf('trainService.getTrainRunsForWeek')
+  // Fetch week metadata, runs, and player list in parallel (was sequential + N+1)
+  const [week, runs, players] = await Promise.all([
+    findWeekById(weekId),
+    findTrainRunsByWeek(weekId),
+    findAllPlayers(),
+  ])
   if (!week) throw new NotFoundError('Week', weekId)
-
-  const runs = await findTrainRunsByWeek(weekId)
-  return Promise.all(runs.map((run) => enrichRun(run, week.label)))
+  const result = await Promise.all(runs.map((run) => enrichRun(run, week.label, players)))
+  done()
+  return result
 }
 
 export async function getRecentTrainHistory(limit = 20): Promise<TrainRunApi[]> {
-  const [runs, weeks] = await Promise.all([
+  const done = perf('trainService.getRecentTrainHistory')
+  // Fetch players alongside runs/weeks — was N+1 (1 findAllPlayers per run)
+  const [runs, weeks, players] = await Promise.all([
     findRecentTrainRuns(limit),
     findAllWeeks(),
-  ])
-  const weekMap = new Map(weeks.map((w) => [w.id, w.label]))
-  return Promise.all(runs.map((run) => enrichRun(run, weekMap.get(run.weekId) ?? `Week ${run.weekId}`)))
-}
-
-async function enrichRun(run: TrainRun, weekLabel: string): Promise<TrainRunApi> {
-  const [selections, players] = await Promise.all([
-    findSelectionsByRun(run.id),
     findAllPlayers(),
   ])
+  const weekMap = new Map(weeks.map((w) => [w.id, w.label]))
+  const result = await Promise.all(
+    runs.map((run) => enrichRun(run, weekMap.get(run.weekId) ?? `Week ${run.weekId}`, players)),
+  )
+  done()
+  return result
+}
+
+/**
+ * @param players - pre-fetched player list; avoids N+1 (one DB call shared across all runs)
+ */
+async function enrichRun(run: TrainRun, weekLabel: string, players: Player[]): Promise<TrainRunApi> {
+  const selections = await findSelectionsByRun(run.id)
   const playerMap = new Map(players.map((p) => [p.id, p]))
 
   const excludedWithNames = run.excludedPlayerIds.map((e) => ({
@@ -113,6 +127,7 @@ async function enrichRun(run: TrainRun, weekLabel: string): Promise<TrainRunApi>
  * (previous weeks), this ensures maximum spread across both time and days.
  */
 export async function triggerFullWeekSelection(weekId: number): Promise<TrainRunApi[]> {
+  const done = perf('trainService.triggerFullWeekSelection')
   const [week, settings, allPlayers, allWeeks] = await Promise.all([
     findWeekById(weekId),
     loadTrainSettings(),
@@ -206,15 +221,18 @@ export async function triggerFullWeekSelection(weekId: number): Promise<TrainRun
 
     for (const sel of result.selections) weeklySelectedIds.add(sel.playerId)
 
-    results.push(await enrichRun(run, week.label))
+    // allPlayers already fetched above — no extra DB call
+    results.push(await enrichRun(run, week.label, allPlayers))
   }
 
+  done()
   return results
 }
 
 // ─── Trigger selection ────────────────────────────────────────────────────────
 
 export async function triggerTrainSelection(input: TriggerTrainRunInput): Promise<TrainRunApi> {
+  const done = perf('trainService.triggerTrainSelection')
   const { weekId, trainDay } = input
 
   if (trainDay < 1 || trainDay > 7) throw new Error('trainDay must be 1–7')
@@ -315,5 +333,7 @@ export async function triggerTrainSelection(input: TriggerTrainRunInput): Promis
     })),
   )
 
-  return enrichRun(run, week.label)
+  const enriched = await enrichRun(run, week.label, allPlayers)
+  done()
+  return enriched
 }

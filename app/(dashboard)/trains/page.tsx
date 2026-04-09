@@ -6,17 +6,25 @@ import { getTrainSettings, getTrainRunsForWeek, getRecentTrainHistory } from '@/
 import { getAllWeeks } from '@/server/services/weekService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
+import { perf } from '@/lib/perf'
 
 interface PageProps {
   searchParams: Promise<{ weekId?: string }>
 }
 
 export default async function TrainsPage({ searchParams }: PageProps) {
+  const done = perf('TrainsPage')
   const { weekId: weekIdParam } = await searchParams
-  const locale = await getLocale()
-  const dict   = await getDict(locale)
-  const weeks  = await getAllWeeks()
-  const user   = await getSessionUser()
+
+  // Group 1: locale + structural data — all independent, run in parallel
+  // (was: 4 sequential awaits — locale → dict → weeks → user)
+  const [locale, weeks, user] = await Promise.all([
+    getLocale(),
+    getAllWeeks(),
+    getSessionUser(),
+  ])
+  const dict = await getDict(locale)
+
   const canTrigger   = user ? hasPermission(user.role, 'trains:trigger')   : false
   const canConfigure = user ? hasPermission(user.role, 'trains:configure') : false
 
@@ -28,6 +36,7 @@ export default async function TrainsPage({ searchParams }: PageProps) {
     validWeekId ? getTrainRunsForWeek(validWeekId) : Promise.resolve([]),
     getRecentTrainHistory(14),
   ])
+  done()
 
   return (
     <>

@@ -12,14 +12,17 @@ import { getAllPlayers } from '@/server/services/playerService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import { interpolate } from '@/lib/i18n/utils'
+import { perf } from '@/lib/perf'
 
 interface PageProps {
   searchParams: Promise<{ weekId?: string }>
 }
 
 export default async function VsPage({ searchParams }: PageProps) {
+  const done = perf('VsPage')
   const { weekId: weekIdParam } = await searchParams
 
+  // Group 1: auth + structural data — all independent, run in parallel
   const [locale, weeks, players, user] = await Promise.all([
     getLocale(),
     getAllWeeks(),
@@ -28,22 +31,26 @@ export default async function VsPage({ searchParams }: PageProps) {
   ])
   const canEdit = user ? hasPermission(user.role, 'scores:import') : false
   const canEco  = user ? hasPermission(user.role, 'scores:edit')   : false
-  const dict = await getDict(locale)
-  const d    = dict.dashboard
 
   if (weeks.length === 0) {
-    return <EmptyState message={d.noWeeks} hint={d.noWeeksHint} />
+    const dict = await getDict(locale)
+    return <EmptyState message={dict.dashboard.noWeeks} hint={dict.dashboard.noWeeksHint} />
   }
 
   const selectedWeekId = weekIdParam ? Number(weekIdParam) : weeks[0]!.id
   const validWeekId    = weeks.find((w) => w.id === selectedWeekId)?.id ?? weeks[0]!.id
   const currentWeek    = weeks.find((w) => w.id === validWeekId)!
 
-  const [dashboardData, vsDays] = await Promise.all([
+  // Group 2: i18n dict + heavy data — run in parallel.
+  // getDict (dynamic import) no longer blocks the DB calls.
+  const [dict, dashboardData, vsDays] = await Promise.all([
+    getDict(locale),
     getDashboardData(validWeekId),
     getVsDaysForWeek(validWeekId),
   ])
+  done()
 
+  const d = dict.dashboard
   const { summary, allKpis, insights } = dashboardData
 
   // Derive existing scores from allKpis (already loaded inside getDashboardData)
