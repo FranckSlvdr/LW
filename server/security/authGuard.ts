@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { ForbiddenError, UnauthorizedError } from '@/lib/errors'
 import { SESSION_COOKIE, verifySessionJwt, createSessionJwt, SESSION_MAX_AGE } from '@/server/security/session'
@@ -67,7 +68,7 @@ export function requirePermission(role: UserRole, permission: Permission): void 
  *
  * Also handles silent JWT refresh when the token is within 4h of expiry.
  */
-export async function getSessionUser(): Promise<AuthUser | null> {
+export const getSessionUser = cache(async (): Promise<AuthUser | null> => {
   const cookieStore  = await cookies()
   const token        = cookieStore.get(SESSION_COOKIE)?.value
   if (!token) return null
@@ -106,7 +107,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
   }
 
   return currentUser
-}
+})
 
 /**
  * Asserts that a valid session exists and the user has the required permission.
