@@ -42,6 +42,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
   const [filterRank,    setRank]        = useState<FilterRank>('all')
   const [confirmDelId,  setConfirmDel]  = useState<number | null>(null)
   const [deleteError,   setDeleteError] = useState<string | null>(null)
+  const [isDeleting,    setIsDeleting]  = useState(false)
   const router                          = useRouter()
   const [isPending, startTransition]    = useTransition()
 
@@ -64,14 +65,21 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
 
   async function handleDelete(playerId: number) {
     setDeleteError(null)
-    const res = await fetch(`/api/players/${playerId}`, { method: 'DELETE' })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la suppression')
-      return
+    setIsDeleting(true)
+    try {
+      const res = await fetch(`/api/players/${playerId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la suppression')
+        return
+      }
+      setConfirmDel(null)
+      router.refresh()
+    } catch {
+      setDeleteError('Erreur réseau — veuillez réessayer')
+    } finally {
+      setIsDeleting(false)
     }
-    setConfirmDel(null)
-    startTransition(() => router.refresh())
   }
 
   // Rank counts for summary strip
@@ -234,10 +242,10 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                           <span className="text-xs text-[var(--color-danger)] mr-1">Supprimer ?</span>
                           <button
                             onClick={() => handleDelete(player.id)}
-                            disabled={isPending}
+                            disabled={isDeleting}
                             className="text-xs px-2.5 py-1 rounded-md bg-[var(--color-danger)] text-white hover:opacity-90 disabled:opacity-40"
                           >
-                            Confirmer
+                            {isDeleting ? '…' : 'Confirmer'}
                           </button>
                           <button
                             onClick={() => setConfirmDel(null)}
