@@ -1,4 +1,5 @@
 import 'server-only'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import {
   findAllWeeks,
   findWeekById,
@@ -26,9 +27,18 @@ export function toWeekApi(week: Week): WeekApi {
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
+// Weeks change at most once a week. Cache for 5 min, invalidated on creation.
+const getAllWeeksCached = unstable_cache(
+  async () => {
+    const weeks = await findAllWeeks()
+    return weeks.map(toWeekApi)
+  },
+  ['all-weeks'],
+  { revalidate: 300, tags: ['weeks'] },
+)
+
 export async function getAllWeeks(): Promise<WeekApi[]> {
-  const weeks = await findAllWeeks()
-  return weeks.map(toWeekApi)
+  return getAllWeeksCached()
 }
 
 export async function getWeekById(id: number): Promise<WeekApi> {
@@ -63,5 +73,6 @@ export async function createNewWeek(raw: unknown): Promise<WeekApi> {
   }
 
   const week = await createWeek(input)
+  revalidateTag('weeks', { expire: 0 })   // bust the getAllWeeks() cache
   return toWeekApi(week)
 }

@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { TopBar } from '@/components/layout/TopBar'
 import { KpiCards } from '@/features/dashboard/components/KpiCards'
 import { TopFlopPanel } from '@/features/dashboard/components/TopFlopPanel'
@@ -5,15 +6,121 @@ import { ScoreHeatmap } from '@/features/dashboard/components/ScoreHeatmap'
 import { InsightsPanel } from '@/features/dashboard/components/InsightsPanel'
 import { ImportStatus } from '@/features/dashboard/components/ImportStatus'
 import { RankingTable } from '@/features/dashboard/components/RankingTable'
+import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton'
 import { getDashboardData } from '@/server/services/kpiService'
 import { getAllWeeks } from '@/server/services/weekService'
 import { getRecentImports } from '@/server/services/importService'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import { interpolate } from '@/lib/i18n/utils'
+import type { Dictionary } from '@/lib/i18n/types'
+import type { WeekApi } from '@/types/api'
 
 interface DashboardPageProps {
   searchParams: Promise<{ weekId?: string }>
 }
+
+// ─── Heavy content (streams in after shell) ───────────────────────────────────
+
+async function DashboardContent({
+  weekId,
+  weeks,
+  locale,
+  dict,
+}: {
+  weekId: number
+  weeks: WeekApi[]
+  locale: string
+  dict: Dictionary
+}) {
+  const d = dict.dashboard
+
+  const [{ summary, allKpis, insights }, recentImports] = await Promise.all([
+    getDashboardData(weekId),
+    getRecentImports(5),
+  ])
+
+  if (allKpis.length === 0) {
+    return (
+      <main className="flex-1 flex items-center justify-center">
+        <EmptyContent
+          message={interpolate(d.noScores, { weekLabel: summary.weekLabel })}
+          hint={d.noScoresHint}
+        />
+      </main>
+    )
+  }
+
+  return (
+    <main className="flex-1 overflow-y-auto">
+      <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+
+        <section>
+          <KpiCards
+            summary={summary}
+            totalRegisteredPlayers={allKpis.length}
+            dict={dict.kpi}
+          />
+        </section>
+
+        <section>
+          <TopFlopPanel
+            topPlayers={summary.topPlayers}
+            flopPlayers={summary.flopPlayers}
+            dict={dict.topFlop}
+          />
+        </section>
+
+        <section>
+          <ScoreHeatmap kpis={allKpis} dict={dict.heatmap} />
+        </section>
+
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <InsightsPanel insights={insights} dict={dict.insights} />
+          <ImportStatus imports={recentImports} dict={dict.imports} locale={locale} />
+        </section>
+
+        <section>
+          <RankingTable kpis={allKpis} />
+        </section>
+
+      </div>
+    </main>
+  )
+}
+
+// ─── Content-only skeleton (shown while DashboardContent streams) ─────────────
+
+function DashboardContentSkeleton() {
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <SkeletonCard lines={6} />
+          <SkeletonCard lines={6} />
+        </div>
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-3">
+          <Skeleton className="h-4 w-40" />
+          <div className="space-y-2 pt-2">
+            {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-8 w-full rounded-lg" />)}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <SkeletonCard lines={5} />
+          <SkeletonCard lines={5} />
+        </div>
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-3">
+          <Skeleton className="h-4 w-36" />
+          {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page shell (resolves fast via cached weeks) ──────────────────────────────
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const { weekId: weekIdParam } = await searchParams
@@ -33,61 +140,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const selectedWeekId = weekIdParam ? Number(weekIdParam) : weeks[0]!.id
   const validWeekId    = weeks.find((w) => w.id === selectedWeekId)?.id ?? weeks[0]!.id
 
-  const [{ summary, allKpis, insights }, recentImports] = await Promise.all([
-    getDashboardData(validWeekId),
-    getRecentImports(5),
-  ])
-
-  if (allKpis.length === 0) {
-    return (
-      <>
-        <TopBar weeks={weeks} selectedWeekId={validWeekId} title={dict.nav.dashboard} />
-        <EmptyState
-          message={interpolate(d.noScores, { weekLabel: summary.weekLabel })}
-          hint={d.noScoresHint}
-        />
-      </>
-    )
-  }
-
   return (
     <>
       <TopBar weeks={weeks} selectedWeekId={validWeekId} title={dict.nav.dashboard} />
-
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
-
-          <section>
-            <KpiCards
-              summary={summary}
-              totalRegisteredPlayers={allKpis.length}
-              dict={dict.kpi}
-            />
-          </section>
-
-          <section>
-            <TopFlopPanel
-              topPlayers={summary.topPlayers}
-              flopPlayers={summary.flopPlayers}
-              dict={dict.topFlop}
-            />
-          </section>
-
-          <section>
-            <ScoreHeatmap kpis={allKpis} dict={dict.heatmap} />
-          </section>
-
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <InsightsPanel insights={insights} dict={dict.insights} />
-            <ImportStatus imports={recentImports} dict={dict.imports} locale={locale} />
-          </section>
-
-          <section>
-            <RankingTable kpis={allKpis} />
-          </section>
-
-        </div>
-      </main>
+      <Suspense fallback={<DashboardContentSkeleton />}>
+        <DashboardContent
+          weekId={validWeekId}
+          weeks={weeks}
+          locale={locale}
+          dict={dict}
+        />
+      </Suspense>
     </>
   )
 }
@@ -106,5 +169,15 @@ function EmptyState({ message, hint }: { message: string; hint: string }) {
         </div>
       </div>
     </main>
+  )
+}
+
+function EmptyContent({ message, hint }: { message: string; hint: string }) {
+  return (
+    <div className="text-center space-y-3 max-w-sm px-6">
+      <div className="text-5xl">📭</div>
+      <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">{message}</h2>
+      <p className="text-sm text-[var(--color-text-secondary)]">{hint}</p>
+    </div>
   )
 }

@@ -140,6 +140,27 @@ export async function getTokenVersion(userId: string): Promise<number | null> {
   return rows[0] ? (rows[0].token_version as number) : null
 }
 
+/**
+ * Single-query replacement for the parallel (getTokenVersion + findUserById) pattern.
+ * Joins users with user_credentials to save one DB round-trip on every
+ * authenticated request.
+ */
+export async function findUserWithTokenVersion(
+  userId: string,
+): Promise<{ user: User; tokenVersion: number } | null> {
+  const rows = await sql`
+    SELECT u.*, uc.token_version
+    FROM   users u
+    JOIN   user_credentials uc ON uc.user_id = u.id
+    WHERE  u.id = ${userId}
+    LIMIT  1
+  `
+  if (!rows[0]) return null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = rows[0] as any
+  return { user: toUser(row), tokenVersion: row.token_version as number }
+}
+
 export async function setInviteToken(
   userId: string,
   tokenHash: string,

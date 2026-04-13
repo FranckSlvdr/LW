@@ -9,6 +9,7 @@ import {
 import { bulkInsertPlayers, findPlayerNameMap } from '@/server/repositories/playerRepository'
 import { upsertScoresBulk } from '@/server/repositories/scoreRepository'
 import { findWeekById } from '@/server/repositories/weekRepository'
+import { invalidatePlayersCache } from '@/server/services/playerService'
 import { NotFoundError, UnprocessableError } from '@/lib/errors'
 import { logger } from '@/lib/logger'
 import { APP_CONFIG } from '@/config/app.config'
@@ -79,6 +80,8 @@ export async function importPlayersFromCsv(
       rowsSkipped: result.summary.skipped,
       errors: result.errors.map((e) => e.error),
     })
+
+    if (inserted > 0) invalidatePlayersCache()
 
     logger.info('Player import completed', {
       importId: importRecord.id,

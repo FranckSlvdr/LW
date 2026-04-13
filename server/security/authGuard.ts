@@ -3,7 +3,7 @@ import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { ForbiddenError, UnauthorizedError } from '@/lib/errors'
 import { SESSION_COOKIE, verifySessionJwt, createSessionJwt, SESSION_MAX_AGE } from '@/server/security/session'
-import { getTokenVersion, findUserById } from '@/server/repositories/userRepository'
+import { findUserWithTokenVersion } from '@/server/repositories/userRepository'
 import type { Permission, UserRole, AuthUser } from '@/types/domain'
 
 // ─── Permission matrix ───────────────────────────────────────────────────────
@@ -78,27 +78,23 @@ export const getSessionUser = cache(async (): Promise<AuthUser | null> => {
 
   const { user, shouldRefresh } = verified
 
-  // DB validation: token_version + is_active
-  const [dbVersion, dbUser] = await Promise.all([
-    getTokenVersion(user.id),
-    findUserById(user.id),
-  ])
-
-  if (dbVersion === null || dbUser === null) return null
-  if (dbVersion !== user.tokenVersion) return null
-  if (!dbUser.isActive) return null
+  // DB validation: single JOIN query instead of two parallel round-trips
+  const result = await findUserWithTokenVersion(user.id)
+  if (!result) return null
+  if (result.tokenVersion !== user.tokenVersion) return null
+  if (!result.user.isActive) return null
 
   // Sync role from DB (catches role changes that haven't forced a new login)
   const currentUser: AuthUser = {
     ...user,
-    role: dbUser.role,
-    name: dbUser.name,
-    email: dbUser.email,
+    role:  result.user.role,
+    name:  result.user.name,
+    email: result.user.email,
   }
 
   // Silent refresh — update the cookie but don't block the response
   if (shouldRefresh) {
-    const newToken = await createSessionJwt({ ...currentUser, tokenVersion: dbVersion })
+    const newToken = await createSessionJwt({ ...currentUser, tokenVersion: result.tokenVersion })
     // We can't set cookies in a server component context here, so we set a
     // header that the middleware can pick up. In route handlers, the caller
     // is responsible for refreshing via the Set-Cookie header.
