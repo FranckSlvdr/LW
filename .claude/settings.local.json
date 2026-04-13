@@ -43,7 +43,24 @@
       "mcp__claude_ai_Supabase__list_projects",
       "mcp__claude_ai_Supabase__list_migrations",
       "mcp__claude_ai_Supabase__list_tables",
-      "mcp__claude_ai_Supabase__execute_sql"
+      "mcp__claude_ai_Supabase__execute_sql",
+      "Bash(git remote:*)",
+      "mcp__claude_ai_Vercel__get_project",
+      "mcp__claude_ai_Vercel__list_teams",
+      "mcp__claude_ai_Vercel__list_projects",
+      "mcp__claude_ai_Vercel__list_deployments",
+      "mcp__claude_ai_Vercel__get_runtime_logs",
+      "mcp__claude_ai_Supabase__get_project_url",
+      "mcp__claude_ai_Supabase__get_project",
+      "mcp__claude_ai_Supabase__search_docs",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "mcp__claude_ai_Supabase__get_logs",
+      "Bash(git commit:*)",
+      "Bash(ls /c/dev/lastwar-app/*.ts)"
     ]
   }
 }

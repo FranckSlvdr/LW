@@ -17,15 +17,18 @@ import type { Player } from '@/types/domain'
 
 export function toPlayerApi(p: Player): PlayerApi {
   return {
-    id:            p.id,
-    name:          p.name,
-    alias:         p.alias,
-    currentRank:   p.currentRank,
-    suggestedRank: p.suggestedRank,
-    rankReason:    p.rankReason,
-    isActive:      p.isActive,
-    joinedAt:      p.joinedAt?.toISOString().split('T')[0] ?? null,
-    leftAt:        p.leftAt?.toISOString().split('T')[0] ?? null,
+    id:              p.id,
+    name:            p.name,
+    alias:           p.alias,
+    currentRank:     p.currentRank,
+    suggestedRank:   p.suggestedRank,
+    rankReason:      p.rankReason,
+    isActive:        p.isActive,
+    joinedAt:        p.joinedAt?.toISOString().split('T')[0] ?? null,
+    leftAt:          p.leftAt?.toISOString().split('T')[0] ?? null,
+    generalLevel:    p.generalLevel,
+    professionKey:   p.professionKey,
+    professionLevel: p.professionLevel,
   }
 }
 

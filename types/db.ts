@@ -22,8 +22,12 @@ export interface PlayerRow {
   joined_at: Date | null
   left_at: Date | null
   is_active: boolean
+  general_level: number | null
   created_at: Date
   updated_at: Date
+  // Optional: populated when findAllPlayers/findPlayerById LEFT JOINs player_professions
+  profession_key?: string | null
+  profession_level?: number | null
 }
 
 export interface WeekRow {

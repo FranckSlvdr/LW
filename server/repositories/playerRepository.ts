@@ -9,18 +9,21 @@ import type { CreatePlayerInput, UpdatePlayerInput } from '@/server/validators/p
 
 function toPlayer(row: PlayerRow): Player {
   return {
-    id:            row.id,
-    name:          row.name,
-    normalizedName:row.normalized_name,
-    alias:         row.alias,
-    currentRank:   (row.current_rank   as PlayerRank) ?? null,
-    suggestedRank: (row.suggested_rank as PlayerRank) ?? null,
-    rankReason:    row.rank_reason ?? null,
-    joinedAt:      row.joined_at,
-    leftAt:        row.left_at,
-    isActive:      row.is_active,
-    createdAt:     row.created_at,
-    updatedAt:     row.updated_at,
+    id:              row.id,
+    name:            row.name,
+    normalizedName:  row.normalized_name,
+    alias:           row.alias,
+    currentRank:     (row.current_rank   as PlayerRank) ?? null,
+    suggestedRank:   (row.suggested_rank as PlayerRank) ?? null,
+    rankReason:      row.rank_reason ?? null,
+    joinedAt:        row.joined_at,
+    leftAt:          row.left_at,
+    isActive:        row.is_active,
+    generalLevel:    row.general_level ?? null,
+    professionKey:   row.profession_key ?? null,
+    professionLevel: row.profession_level ?? null,
+    createdAt:       row.created_at,
+    updatedAt:       row.updated_at,
   }
 }
 
@@ -29,30 +32,38 @@ function toPlayer(row: PlayerRow): Player {
 export async function findAllPlayers(activeOnly = true): Promise<Player[]> {
   const rows = activeOnly
     ? await db<PlayerRow[]>`
-        SELECT * FROM players
-        WHERE is_active = TRUE
+        SELECT p.*, pp.profession_key, pp.level AS profession_level
+        FROM players p
+        LEFT JOIN player_professions pp ON pp.player_id = p.id
+        WHERE p.is_active = TRUE
         ORDER BY
-          CASE current_rank
+          CASE p.current_rank
             WHEN 'R5' THEN 1 WHEN 'R4' THEN 2 WHEN 'R3' THEN 3
             WHEN 'R2' THEN 4 WHEN 'R1' THEN 5 ELSE 6
           END,
-          name ASC
+          p.name ASC
       `
     : await db<PlayerRow[]>`
-        SELECT * FROM players
+        SELECT p.*, pp.profession_key, pp.level AS profession_level
+        FROM players p
+        LEFT JOIN player_professions pp ON pp.player_id = p.id
         ORDER BY
-          CASE current_rank
+          CASE p.current_rank
             WHEN 'R5' THEN 1 WHEN 'R4' THEN 2 WHEN 'R3' THEN 3
             WHEN 'R2' THEN 4 WHEN 'R1' THEN 5 ELSE 6
           END,
-          name ASC
+          p.name ASC
       `
   return rows.map(toPlayer)
 }
 
 export async function findPlayerById(id: number): Promise<Player | null> {
   const rows = await db<PlayerRow[]>`
-    SELECT * FROM players WHERE id = ${id} LIMIT 1
+    SELECT p.*, pp.profession_key, pp.level AS profession_level
+    FROM players p
+    LEFT JOIN player_professions pp ON pp.player_id = p.id
+    WHERE p.id = ${id}
+    LIMIT 1
   `
   return rows[0] ? toPlayer(rows[0]) : null
 }
@@ -111,6 +122,7 @@ export async function updatePlayer(
   if (input.isActive      !== undefined) sets.is_active      = input.isActive
   if (input.joinedAt      !== undefined) sets.joined_at      = input.joinedAt
   if (input.leftAt        !== undefined) sets.left_at        = input.leftAt
+  if (input.generalLevel  !== undefined) sets.general_level  = input.generalLevel
 
   const rows = await db<PlayerRow[]>`
     UPDATE players

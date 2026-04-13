@@ -37,15 +37,18 @@ export async function POST(request: Request) {
     const playersApi: PlayerApi[] = allPlayers
       .filter((p) => p.isActive)
       .map((p) => ({
-        id:            p.id,
-        name:          p.name,
-        alias:         p.alias,
-        currentRank:   p.currentRank,
-        suggestedRank: p.suggestedRank,
-        rankReason:    p.rankReason,
-        isActive:      p.isActive,
-        joinedAt:      p.joinedAt?.toISOString() ?? null,
-        leftAt:        p.leftAt?.toISOString()   ?? null,
+        id:              p.id,
+        name:            p.name,
+        alias:           p.alias,
+        currentRank:     p.currentRank,
+        suggestedRank:   p.suggestedRank,
+        rankReason:      p.rankReason,
+        isActive:        p.isActive,
+        joinedAt:        p.joinedAt?.toISOString() ?? null,
+        leftAt:          p.leftAt?.toISOString()   ?? null,
+        generalLevel:    p.generalLevel,
+        professionKey:   p.professionKey,
+        professionLevel: p.professionLevel,
       }))
 
     const response: OcrParseResultApi = {

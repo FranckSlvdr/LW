@@ -119,6 +119,12 @@ export interface Player {
   /** When the player left the alliance (null = still active) */
   leftAt: Date | null
   isActive: boolean
+  /** Player's overall in-game level (manually set) */
+  generalLevel: number | null
+  /** Active profession key — null if no profession recorded */
+  professionKey: string | null
+  /** Profession level (1–10) — null if no profession recorded */
+  professionLevel: number | null
   createdAt: Date
   updatedAt: Date
 }

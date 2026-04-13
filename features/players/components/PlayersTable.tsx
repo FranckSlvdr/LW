@@ -8,6 +8,18 @@ import { PLAYER_RANKS, RANK_LABEL } from '@/types/domain'
 import type { PlayerApi } from '@/types/api'
 import type { PlayerRank } from '@/types/domain'
 
+// ─── Profession helpers ───────────────────────────────────────────────────────
+
+const PROFESSION_ICON: Record<string, string> = {
+  farmer:     '🌾',
+  fighter:    '⚔️',
+  builder:    '🏗️',
+  researcher: '🔬',
+  explorer:   '🗺️',
+}
+
+const MAX_PROFESSION_LEVEL = 10
+
 // ─── Rank display helpers ─────────────────────────────────────────────────────
 
 const RANK_BADGE_VARIANT: Record<PlayerRank, 'danger' | 'warning' | 'success' | 'info' | 'neutral'> = {
@@ -179,6 +191,8 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                 <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Joueur</th>
                 <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Rang actuel</th>
                 <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Suggestion app</th>
+                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Profession</th>
+                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Niv. général</th>
                 <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Statut</th>
                 {canManage && <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">Actions</th>}
               </tr>
@@ -223,6 +237,33 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         {player.rankReason && (
                           <span className="ml-1 text-[0.6rem] text-[var(--color-text-muted)] cursor-help">ⓘ</span>
                         )}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-[var(--color-text-muted)]">—</span>
+                    )}
+                  </td>
+
+                  {/* Profession */}
+                  <td className="px-4 py-3 text-center">
+                    {player.professionKey ? (
+                      <span className="inline-flex flex-col items-center gap-0.5">
+                        <span className="text-base leading-none" title={player.professionKey}>
+                          {PROFESSION_ICON[player.professionKey] ?? '❓'}
+                        </span>
+                        <span className="text-[0.6rem] text-[var(--color-text-muted)] leading-none">
+                          {player.professionLevel ?? '—'}/{MAX_PROFESSION_LEVEL}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-[var(--color-text-muted)]">—</span>
+                    )}
+                  </td>
+
+                  {/* General level */}
+                  <td className="px-4 py-3 text-center">
+                    {player.generalLevel != null ? (
+                      <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+                        {player.generalLevel}
                       </span>
                     ) : (
                       <span className="text-xs text-[var(--color-text-muted)]">—</span>
@@ -278,7 +319,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={canManage ? 5 : 4} className="px-5 py-10 text-center text-sm text-[var(--color-text-muted)]">
+                  <td colSpan={canManage ? 7 : 6} className="px-5 py-10 text-center text-sm text-[var(--color-text-muted)]">
                     Aucun joueur correspondant
                   </td>
                 </tr>

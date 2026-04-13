@@ -163,6 +163,9 @@ export interface PlayerApi {
   isActive: boolean
   joinedAt: string | null
   leftAt: string | null
+  generalLevel: number | null
+  professionKey: string | null
+  professionLevel: number | null
 }
 
 export interface CreatePlayerInput {

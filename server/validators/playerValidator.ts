@@ -46,6 +46,7 @@ export const updatePlayerSchema = z
     isActive:      z.boolean().optional(),
     joinedAt:      isoDate,
     leftAt:        isoDate,
+    generalLevel:  z.number().int().min(1).max(99).nullable().optional(),
   })
   .refine(
     (data) => {
