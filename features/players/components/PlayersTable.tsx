@@ -38,6 +38,8 @@ const RANK_SHORT: Record<PlayerRank, string> = {
   R1: 'R1 Inactif',
 }
 
+const PROFESSION_KEYS = Object.keys(PROFESSION_ICON)
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface PlayersTableProps {
@@ -48,15 +50,22 @@ interface PlayersTableProps {
 type FilterStatus = 'all' | 'active' | 'inactive'
 type FilterRank   = 'all' | 'unclassified' | PlayerRank
 
+interface EditingName       { id: number; value: string }
+interface EditingLevel      { id: number; value: string }
+interface EditingProfession { id: number; key: string; level: string }
+
 export function PlayersTable({ players, canManage }: PlayersTableProps) {
-  const [showAdd,       setShowAdd]     = useState(false)
-  const [filterStatus,  setStatus]      = useState<FilterStatus>('all')
-  const [filterRank,    setRank]        = useState<FilterRank>('all')
-  const [confirmDelId,  setConfirmDel]  = useState<number | null>(null)
-  const [deleteError,   setDeleteError] = useState<string | null>(null)
-  const [isDeleting,    setIsDeleting]  = useState(false)
-  const router                          = useRouter()
-  const [isPending, startTransition]    = useTransition()
+  const [showAdd,          setShowAdd]        = useState(false)
+  const [filterStatus,     setStatus]         = useState<FilterStatus>('all')
+  const [filterRank,       setRank]           = useState<FilterRank>('all')
+  const [confirmDelId,     setConfirmDel]     = useState<number | null>(null)
+  const [deleteError,      setDeleteError]    = useState<string | null>(null)
+  const [isDeleting,       setIsDeleting]     = useState(false)
+  const [editingName,      setEditingName]    = useState<EditingName | null>(null)
+  const [editingLevel,     setEditingLevel]   = useState<EditingLevel | null>(null)
+  const [editingProfession,setEditingProf]    = useState<EditingProfession | null>(null)
+  const router                               = useRouter()
+  const [isPending, startTransition]         = useTransition()
 
   const filtered = players.filter((p) => {
     const statusOk = filterStatus === 'all' || (filterStatus === 'active' ? p.isActive : !p.isActive)
@@ -92,6 +101,41 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  async function handleSaveName(playerId: number) {
+    if (!editingName || editingName.id !== playerId) return
+    const name = editingName.value.trim()
+    setEditingName(null)
+    if (!name) return
+    const currentPlayer = players.find((p) => p.id === playerId)
+    if (name === currentPlayer?.name) return
+    await handlePatch(playerId, { name })
+  }
+
+  async function handleSaveLevel(playerId: number) {
+    if (!editingLevel || editingLevel.id !== playerId) return
+    const raw = editingLevel.value.trim()
+    setEditingLevel(null)
+    const generalLevel = raw === '' ? null : Number(raw)
+    if (isNaN(generalLevel as number)) return
+    const currentPlayer = players.find((p) => p.id === playerId)
+    if (generalLevel === currentPlayer?.generalLevel) return
+    await handlePatch(playerId, { generalLevel })
+  }
+
+  async function handleSaveProfession(playerId: number) {
+    if (!editingProfession || editingProfession.id !== playerId) return
+    const { key, level: rawLevel } = editingProfession
+    setEditingProf(null)
+    const level = Number(rawLevel)
+    if (!key || isNaN(level) || level < 1 || level > MAX_PROFESSION_LEVEL) return
+    await fetch('/api/professions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId, professionKey: key, level }),
+    })
+    startTransition(() => router.refresh())
   }
 
   // Rank counts for summary strip
@@ -207,7 +251,27 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                   ].join(' ')}
                 >
                   <td className="px-5 py-3 font-medium text-[var(--color-text-primary)]">
-                    {player.name}
+                    {canManage && editingName?.id === player.id ? (
+                      <input
+                        autoFocus
+                        value={editingName.value}
+                        onChange={(e) => setEditingName({ id: player.id, value: e.target.value })}
+                        onBlur={() => handleSaveName(player.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveName(player.id)
+                          if (e.key === 'Escape') setEditingName(null)
+                        }}
+                        className="w-full px-2 py-0.5 text-sm rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
+                      />
+                    ) : (
+                      <span
+                        onClick={() => canManage ? setEditingName({ id: player.id, value: player.name }) : undefined}
+                        className={canManage ? 'cursor-text hover:underline decoration-dotted underline-offset-2' : ''}
+                        title={canManage ? 'Cliquer pour modifier' : undefined}
+                      >
+                        {player.name}
+                      </span>
+                    )}
                   </td>
 
                   {/* Current rank */}
@@ -245,9 +309,46 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
 
                   {/* Profession */}
                   <td className="px-4 py-3 text-center">
-                    {player.professionKey ? (
-                      <span className="inline-flex flex-col items-center gap-0.5">
-                        <span className="text-base leading-none" title={player.professionKey}>
+                    {canManage && editingProfession?.id === player.id ? (
+                      <span className="inline-flex items-center gap-1">
+                        <select
+                          autoFocus
+                          value={editingProfession.key}
+                          onChange={(e) => setEditingProf({ ...editingProfession, key: e.target.value })}
+                          className="text-xs px-1 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
+                        >
+                          {PROFESSION_KEYS.map((k) => (
+                            <option key={k} value={k}>{PROFESSION_ICON[k]} {k}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min={1}
+                          max={MAX_PROFESSION_LEVEL}
+                          value={editingProfession.level}
+                          onChange={(e) => setEditingProf({ ...editingProfession, level: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveProfession(player.id)
+                            if (e.key === 'Escape') setEditingProf(null)
+                          }}
+                          className="w-10 text-xs px-1 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
+                        />
+                        <button
+                          onClick={() => handleSaveProfession(player.id)}
+                          className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-white"
+                        >✓</button>
+                        <button
+                          onClick={() => setEditingProf(null)}
+                          className="text-xs px-1.5 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)]"
+                        >✕</button>
+                      </span>
+                    ) : player.professionKey ? (
+                      <span
+                        onClick={() => canManage ? setEditingProf({ id: player.id, key: player.professionKey!, level: String(player.professionLevel ?? 1) }) : undefined}
+                        className={`inline-flex flex-col items-center gap-0.5 ${canManage ? 'cursor-pointer hover:opacity-70' : ''}`}
+                        title={canManage ? 'Cliquer pour modifier' : undefined}
+                      >
+                        <span className="text-base leading-none">
                           {PROFESSION_ICON[player.professionKey] ?? '❓'}
                         </span>
                         <span className="text-[0.6rem] text-[var(--color-text-muted)] leading-none">
@@ -255,18 +356,49 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         </span>
                       </span>
                     ) : (
-                      <span className="text-xs text-[var(--color-text-muted)]">—</span>
+                      <span
+                        onClick={() => canManage ? setEditingProf({ id: player.id, key: 'fighter', level: '1' }) : undefined}
+                        className={`text-xs ${canManage ? 'cursor-pointer text-[var(--color-accent)] hover:underline' : 'text-[var(--color-text-muted)]'}`}
+                        title={canManage ? 'Cliquer pour ajouter' : undefined}
+                      >
+                        {canManage ? '+ ajouter' : '—'}
+                      </span>
                     )}
                   </td>
 
                   {/* General level */}
                   <td className="px-4 py-3 text-center">
-                    {player.generalLevel != null ? (
-                      <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+                    {canManage && editingLevel?.id === player.id ? (
+                      <input
+                        autoFocus
+                        type="number"
+                        min={1}
+                        max={99}
+                        value={editingLevel.value}
+                        onChange={(e) => setEditingLevel({ id: player.id, value: e.target.value })}
+                        onBlur={() => handleSaveLevel(player.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveLevel(player.id)
+                          if (e.key === 'Escape') setEditingLevel(null)
+                        }}
+                        className="w-14 text-xs px-1.5 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] text-center focus:outline-none"
+                      />
+                    ) : player.generalLevel != null ? (
+                      <span
+                        onClick={() => canManage ? setEditingLevel({ id: player.id, value: String(player.generalLevel) }) : undefined}
+                        className={`text-xs font-semibold text-[var(--color-text-primary)] ${canManage ? 'cursor-text hover:underline decoration-dotted underline-offset-2' : ''}`}
+                        title={canManage ? 'Cliquer pour modifier' : undefined}
+                      >
                         {player.generalLevel}
                       </span>
                     ) : (
-                      <span className="text-xs text-[var(--color-text-muted)]">—</span>
+                      <span
+                        onClick={() => canManage ? setEditingLevel({ id: player.id, value: '' }) : undefined}
+                        className={`text-xs ${canManage ? 'cursor-pointer text-[var(--color-accent)] hover:underline' : 'text-[var(--color-text-muted)]'}`}
+                        title={canManage ? 'Cliquer pour ajouter' : undefined}
+                      >
+                        {canManage ? '+ ajouter' : '—'}
+                      </span>
                     )}
                   </td>
 
