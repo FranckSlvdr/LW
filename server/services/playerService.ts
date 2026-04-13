@@ -51,7 +51,12 @@ export async function getAllPlayers(activeOnly = true): Promise<PlayerApi[]> {
 
 /** Call after any mutation that changes the active player list. */
 export function invalidatePlayersCache(): void {
-  revalidateTag('players', { expire: 0 })
+  try {
+    revalidateTag('players', { expire: 0 })
+  } catch {
+    // revalidateTag can throw when called outside a full Next.js render context
+    // (e.g. from some Route Handler setups). The cache will expire via TTL.
+  }
 }
 
 export async function getPlayerById(id: number): Promise<PlayerApi> {

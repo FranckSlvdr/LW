@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { formatScore } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/client'
 import type { OcrParseResultApi, OcrParsedRowApi, PlayerApi, OcrParseIssue } from '@/types/api'
@@ -157,9 +157,8 @@ export function OcrValidationTable({
                 : 'opacity-50'
 
               return (
-                <>
+                <React.Fragment key={row.rowIndex}>
                   <tr
-                    key={row.rowIndex}
                     className={`border-b border-[var(--color-border-subtle)] transition-colors ${rowBg}`}
                   >
                     {/* Checkbox */}
@@ -265,7 +264,7 @@ export function OcrValidationTable({
 
                   {/* Raw text expansion row */}
                   {state.rawExpanded && (
-                    <tr key={`${row.rowIndex}-raw`} className="bg-[var(--color-surface-raised)]/50 border-b border-[var(--color-border-subtle)]">
+                    <tr className="bg-[var(--color-surface-raised)]/50 border-b border-[var(--color-border-subtle)]">
                       <td colSpan={6} className="px-4 py-2">
                         <div className="space-y-1">
                           <p className="text-[0.6rem] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">
@@ -283,7 +282,7 @@ export function OcrValidationTable({
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               )
             })}
           </tbody>

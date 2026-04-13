@@ -73,6 +73,10 @@ export async function createNewWeek(raw: unknown): Promise<WeekApi> {
   }
 
   const week = await createWeek(input)
-  revalidateTag('weeks', { expire: 0 })   // bust the getAllWeeks() cache
+  try {
+    revalidateTag('weeks', { expire: 0 })   // bust the getAllWeeks() cache
+  } catch {
+    // revalidateTag can throw outside a full Next.js render context
+  }
   return toWeekApi(week)
 }

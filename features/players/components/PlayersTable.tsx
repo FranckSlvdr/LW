@@ -41,6 +41,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
   const [filterStatus,  setStatus]      = useState<FilterStatus>('all')
   const [filterRank,    setRank]        = useState<FilterRank>('all')
   const [confirmDelId,  setConfirmDel]  = useState<number | null>(null)
+  const [deleteError,   setDeleteError] = useState<string | null>(null)
   const router                          = useRouter()
   const [isPending, startTransition]    = useTransition()
 
@@ -62,7 +63,13 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
   }
 
   async function handleDelete(playerId: number) {
-    await fetch(`/api/players/${playerId}`, { method: 'DELETE' })
+    setDeleteError(null)
+    const res = await fetch(`/api/players/${playerId}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la suppression')
+      return
+    }
     setConfirmDel(null)
     startTransition(() => router.refresh())
   }
@@ -147,6 +154,13 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
         {canManage && showAdd && (
           <div className="mx-5 mb-4">
             <AddPlayerForm onDone={() => { setShowAdd(false); startTransition(() => router.refresh()) }} />
+          </div>
+        )}
+
+        {deleteError && (
+          <div className="mx-5 mb-3 px-4 py-2.5 rounded-lg border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/5 text-sm text-[var(--color-danger)] flex items-center justify-between gap-3">
+            <span>{deleteError}</span>
+            <button onClick={() => setDeleteError(null)} className="text-[var(--color-danger)] hover:opacity-70 shrink-0">✕</button>
           </div>
         )}
 
