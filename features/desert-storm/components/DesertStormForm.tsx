@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { formatScore } from '@/lib/utils'
 import type { PlayerApi, DesertStormScoreApi } from '@/types/api'
@@ -10,17 +9,23 @@ interface DesertStormFormProps {
   weekId: number
   players: PlayerApi[]
   existingScores: DesertStormScoreApi[]
+  disabled?: boolean
+  disabledReason?: string
 }
 
-export function DesertStormForm({ weekId, players, existingScores }: DesertStormFormProps) {
+export function DesertStormForm({
+  weekId,
+  players,
+  existingScores,
+  disabled = false,
+  disabledReason,
+}: DesertStormFormProps) {
   const existingMap  = new Map(existingScores.map((s) => [s.playerId, s.score]))
   const [entries, setEntries] = useState<Array<{ playerId: number; score: string }>>(
     players.map((p) => ({ playerId: p.id, score: String(existingMap.get(p.id) ?? '') })),
   )
   const [status, setStatus]   = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [msg, setMsg]         = useState<string | null>(null)
-  const router                = useRouter()
-  const [, startTransition]   = useTransition()
 
   function updateScore(playerId: number, value: string) {
     setEntries((prev) =>
@@ -36,18 +41,29 @@ export function DesertStormForm({ weekId, players, existingScores }: DesertStorm
 
     try {
       const results = await Promise.allSettled(
-        toSave.map((e) =>
-          fetch('/api/desert-storm', {
+        toSave.map(async (e) => {
+          const res = await fetch('/api/desert-storm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ playerId: e.playerId, weekId, score: Number(e.score) }),
-          }),
-        ),
+          })
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            throw new Error(data?.error?.message ?? `Erreur ${res.status}`)
+          }
+          return res
+        }),
       )
-      const ok = results.filter((r) => r.status === 'fulfilled').length
-      setStatus('done')
-      setMsg(`✅ ${ok} score${ok > 1 ? 's' : ''} sauvegardé${ok > 1 ? 's' : ''}`)
-      startTransition(() => router.refresh())
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length
+      const failed    = results.filter((r) => r.status === 'rejected')
+      if (failed.length > 0) {
+        const firstErr = (failed[0] as PromiseRejectedResult).reason
+        setStatus('error')
+        setMsg(`⚠️ ${succeeded} sauvegardé${succeeded > 1 ? 's' : ''}, ${failed.length} erreur${failed.length > 1 ? 's' : ''} — ${firstErr instanceof Error ? firstErr.message : 'Erreur inconnue'}`)
+      } else {
+        setStatus('done')
+        setMsg(`✅ ${succeeded} score${succeeded > 1 ? 's' : ''} sauvegardé${succeeded > 1 ? 's' : ''}`)
+      }
     } catch {
       setStatus('error')
       setMsg('Erreur lors de la sauvegarde')
@@ -80,6 +96,7 @@ export function DesertStormForm({ weekId, players, existingScores }: DesertStorm
               <input
                 type="number"
                 min={0}
+                disabled={disabled}
                 value={entry.score}
                 onChange={(e) => updateScore(entry.playerId, e.target.value)}
                 placeholder="0"
@@ -90,14 +107,25 @@ export function DesertStormForm({ weekId, players, existingScores }: DesertStorm
         })}
       </div>
 
-      <div className="mt-4 flex items-center gap-4">
+      <div className="mt-4 flex items-center gap-4 flex-wrap">
         <button
           onClick={handleSave}
-          disabled={status === 'loading'}
+          disabled={status === 'loading' || disabled}
           className="px-5 py-2 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-40"
         >
           {status === 'loading' ? 'Sauvegarde…' : 'Sauvegarder tous les scores'}
         </button>
+        {disabled && disabledReason && (
+          <span className="text-sm text-[var(--color-text-muted)]">{disabledReason}</span>
+        )}
+        {status === 'error' && (
+          <button
+            onClick={() => { setStatus('idle'); setMsg(null) }}
+            className="px-4 py-2 text-sm border border-[var(--color-border)] text-[var(--color-text-muted)] rounded-lg hover:border-[var(--color-accent)] transition-colors"
+          >
+            Réessayer
+          </button>
+        )}
         {msg && (
           <span className={`text-sm ${status === 'error' ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}`}>
             {msg}

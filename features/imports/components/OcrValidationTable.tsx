@@ -1,9 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
-import { formatScore } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/client'
-import type { OcrParseResultApi, OcrParsedRowApi, PlayerApi, OcrParseIssue } from '@/types/api'
+import type { OcrParseResultApi, OcrParsedRowApi, OcrParseIssue } from '@/types/api'
 
 // Issue color map (keys are static, labels come from dict)
 const ISSUE_COLORS: Record<OcrParseIssue, string> = {
@@ -49,8 +48,6 @@ function initRowState(row: OcrParsedRowApi): RowState {
 
 interface OcrValidationTableProps {
   result:    OcrParseResultApi
-  weekId:    number
-  dayOfWeek: number
   onConfirm: (rows: Array<{ playerId: number; score: number }>) => Promise<void>
   confirming: boolean
 }
@@ -58,7 +55,7 @@ interface OcrValidationTableProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function OcrValidationTable({
-  result, weekId, dayOfWeek, onConfirm, confirming,
+  result, onConfirm, confirming,
 }: OcrValidationTableProps) {
   const { dict }  = useI18n()
   const t         = dict.ocr
@@ -78,16 +75,12 @@ export function OcrValidationTable({
     name_truncated:      t.issueNameTruncated,
     ambiguous_player:    t.issueAmbiguousPlayer,
   }
-
-  const playerMap = new Map<number, string>(result.players.map((p) => [p.id, p.name]))
-
   function updateRow(i: number, patch: Partial<RowState>) {
     setRowStates((prev) => prev.map((r, idx) => idx === i ? { ...r, ...patch } : r))
   }
 
   function toggleAll(included: boolean) {
     setRowStates((prev) => prev.map((r, i) => {
-      const row = result.rows[i]!
       // Only toggle rows that have enough data to be importable
       if (rowStates[i]?.playerId !== null && rowStates[i]?.score !== null) {
         return { ...r, included }
@@ -96,16 +89,16 @@ export function OcrValidationTable({
     }))
   }
 
-  const readyRows = rowStates
-    .map((s, i) => ({ s, row: result.rows[i]! }))
-    .filter(({ s }) => s.included && s.playerId !== null && s.score !== null)
+  const readyRows = rowStates.filter((state) => (
+    state.included && state.playerId !== null && state.score !== null
+  ))
 
   const includedCount = readyRows.length
 
   async function handleConfirm() {
-    const payload = readyRows.map(({ s }) => ({
-      playerId: s.playerId!,
-      score:    s.score!,
+    const payload = readyRows.map((state) => ({
+      playerId: state.playerId!,
+      score:    state.score!,
     }))
     await onConfirm(payload)
   }

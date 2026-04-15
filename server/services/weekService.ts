@@ -6,9 +6,10 @@ import {
   findWeekByStartDate,
   findLatestWeek,
   createWeek,
+  lockWeek,
 } from '@/server/repositories/weekRepository'
 import { createWeekSchema } from '@/server/validators/weekValidator'
-import { NotFoundError, ConflictError, BadRequestError } from '@/lib/errors'
+import { NotFoundError, ConflictError, BadRequestError, AppError } from '@/lib/errors'
 import { isMonday } from '@/lib/utils'
 import type { Week } from '@/types/domain'
 import type { WeekApi } from '@/types/api'
@@ -52,6 +53,32 @@ export async function getLatestWeek(): Promise<WeekApi | null> {
   return week ? toWeekApi(week) : null
 }
 
+export async function assertWeekOpenForManualEntry(weekId: number): Promise<WeekApi> {
+  const [week, latestWeek] = await Promise.all([
+    findWeekById(weekId),
+    findLatestWeek(),
+  ])
+
+  if (!week) throw new NotFoundError('Week', weekId)
+  if (week.isLocked) {
+    throw new AppError(
+      'Cette semaine est verrouillee. Les saisies manuelles sont desactivees.',
+      'WEEK_LOCKED',
+      423,
+    )
+  }
+
+  if (latestWeek && latestWeek.id !== week.id) {
+    throw new AppError(
+      'Les saisies manuelles sont autorisees uniquement sur la semaine active la plus recente.',
+      'WEEK_CLOSED',
+      423,
+    )
+  }
+
+  return toWeekApi(week)
+}
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export async function createNewWeek(raw: unknown): Promise<WeekApi> {
@@ -74,9 +101,21 @@ export async function createNewWeek(raw: unknown): Promise<WeekApi> {
 
   const week = await createWeek(input)
   try {
-    revalidateTag('weeks', { expire: 0 })   // bust the getAllWeeks() cache
+    revalidateTag('weeks', { expire: 0 })
   } catch {
     // revalidateTag can throw outside a full Next.js render context
   }
   return toWeekApi(week)
+}
+
+export async function lockExistingWeek(id: number, isLocked: boolean): Promise<WeekApi> {
+  const week = await findWeekById(id)
+  if (!week) throw new NotFoundError('Week', id)
+  await lockWeek(id, isLocked)
+  try {
+    revalidateTag('weeks', { expire: 0 })
+  } catch {
+    // no-op outside render context
+  }
+  return toWeekApi({ ...week, isLocked })
 }

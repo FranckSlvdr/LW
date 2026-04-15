@@ -7,8 +7,9 @@
  * Absences are represented by missing entries (score 0 in the KPI engine).
  */
 
-import type { PlayerKpi, WeekKpiSummary, WeekApi, Insight } from '@/types/api'
+import type { WeekApi } from '@/types/api'
 import type { DashboardData } from '@/server/services/kpiService'
+import { computeRankDistribution } from '@/server/services/kpiService'
 import type { Import } from '@/types/domain'
 import { computeKpis, getTopPlayers, getFlopPlayers } from '@/server/engines/kpiEngine'
 import { generateInsights } from '@/server/engines/insightEngine'
@@ -128,9 +129,16 @@ function buildDashboard(weekId: number): DashboardData {
     }
   }
 
-  const prevKpisForInsights = previousScores
+  // Compute prevKpis once — reused for delta and insights
+  const prevKpis = previousScores
     ? computeKpis({ players: MOCK_PLAYERS, currentScores: previousScores })
     : undefined
+
+  // Build player rank map from mock players
+  const playerRanks: Record<number, string | null> = {}
+  for (const p of MOCK_PLAYERS) {
+    playerRanks[p.id] = p.currentRank
+  }
 
   return {
     summary: {
@@ -148,11 +156,13 @@ function buildDashboard(weekId: number): DashboardData {
     insights: generateInsights(
       {
         currentKpis: allKpis,
-        previousKpis: prevKpisForInsights,
+        previousKpis: prevKpis,
         weekLabel: isCurrent ? 'Semaine 15 · 2025' : 'Semaine 14 · 2025',
       },
       fr.insights,
     ),
+    rankStats: computeRankDistribution(allKpis, playerRanks),
+    levelBuckets: [],
   }
 }
 

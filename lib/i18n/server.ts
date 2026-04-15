@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { headers } from 'next/headers'
 import { isValidLocale, DEFAULT_LOCALE } from './config'
 import type { Locale } from './config'
@@ -11,8 +12,12 @@ export async function getLocale(): Promise<Locale> {
   return isValidLocale(value) ? value : DEFAULT_LOCALE
 }
 
-/** Load the full translation dictionary for the given locale. */
-export async function getDict(locale: Locale): Promise<Dictionary> {
+const loadDict = cache(async (locale: Locale): Promise<Dictionary> => {
   const { [locale]: dict } = await import(`./locales/${locale}`)
   return dict as Dictionary
+})
+
+/** Load the full translation dictionary for the given locale. */
+export async function getDict(locale: Locale): Promise<Dictionary> {
+  return loadDict(locale)
 }

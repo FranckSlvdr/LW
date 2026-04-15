@@ -14,7 +14,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireAuth('scores:import')
+    await requireAuth('weeks:manage')
     const body = await request.json()
     const week = await createNewWeek(body)
     return created(week)

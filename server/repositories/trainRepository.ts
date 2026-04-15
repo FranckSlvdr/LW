@@ -60,7 +60,7 @@ function toRun(row: RunRow): TrainRun {
     trainDay:          row.train_day as TrainDay,
     settingsSnapshot:  parseJson(row.settings_snapshot) as TrainRun['settingsSnapshot'],
     excludedPlayerIds: parseJson(row.excluded_player_ids) as TrainRun['excludedPlayerIds'],
-    createdAt:         row.created_at,
+    createdAt:         new Date(row.created_at),
   }
 }
 
@@ -189,6 +189,31 @@ export async function findSelectionsByRuns(runIds: number[]): Promise<TrainSelec
     SELECT * FROM train_selections WHERE run_id = ANY(${runIds})
   `
   return rows.map(toSelection)
+}
+
+/**
+ * Batch version with player JOIN — avoids N+1 when enriching multiple runs.
+ * Returns a Map<runId, selections> for O(1) lookup in enrichRun.
+ */
+export async function findSelectionsByRunsWithPlayers(
+  runIds: number[],
+): Promise<Map<number, Array<TrainSelection & { playerName: string; playerAlias: string | null }>>> {
+  if (runIds.length === 0) return new Map()
+  const rows = await db<SelectionRow[]>`
+    SELECT ts.*, p.name AS player_name, p.alias AS player_alias
+    FROM   train_selections ts
+    JOIN   players p ON p.id = ts.player_id
+    WHERE  ts.run_id = ANY(${runIds})
+    ORDER  BY ts.run_id, ts.position
+  `
+  const map = new Map<number, Array<TrainSelection & { playerName: string; playerAlias: string | null }>>()
+  for (const r of rows) {
+    const sel = { ...toSelection(r), playerName: r.player_name ?? '', playerAlias: r.player_alias ?? null }
+    const existing = map.get(r.run_id)
+    if (existing) existing.push(sel)
+    else map.set(r.run_id, [sel])
+  }
+  return map
 }
 
 export async function replaceSelectionsForRun(

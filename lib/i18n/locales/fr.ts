@@ -7,7 +7,6 @@ export const fr: Dictionary = {
     imports:     'Imports',
     events:      'Événements',
     professions: 'Professions',
-    ranking:     'Classement',
     settings:    'Paramètres',
   },
 
@@ -93,19 +92,6 @@ export const fr: Dictionary = {
     typePlayers:   'Joueurs',
     typeScores:    'Scores',
     importPrefix:  'Import ',
-  },
-
-  ranking: {
-    title:    'Classement complet',
-    subtitle: '{count} joueurs · cliquez sur un en-tête pour trier',
-    colRank:          'Rang',
-    colPlayer:        'Joueur',
-    colTotal:         'Score total',
-    colAvgDay:        'Moy. / jour',
-    colParticipation: 'Participation',
-    colTrend:         'Trend',
-    colEco:           'Éco',
-    absent:           'Absent',
   },
 
   events: {

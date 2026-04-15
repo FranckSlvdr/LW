@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useI18n } from '@/lib/i18n/client'
@@ -22,8 +21,6 @@ export function TrainSelector({ weekId, weekLabel, settings, existingRuns, canTr
   const [loading, setLoading]         = useState<'idle' | 'day' | 'week'>('idle')
   const [errorMsg, setErrorMsg]       = useState<string | null>(null)
   const [localRuns, setLocalRuns]     = useState<TrainRunApi[]>(existingRuns)
-  const router                        = useRouter()
-  const [, startTransition]           = useTransition()
 
   const currentRun   = localRuns.find((r) => r.trainDay === selectedDay)
   const drawnDays    = localRuns.map((r) => r.trainDay)
@@ -51,7 +48,6 @@ export function TrainSelector({ weekId, weekLabel, settings, existingRuns, canTr
       const newRun: TrainRunApi = data.data
       setLocalRuns((prev) => [...prev.filter((r) => r.trainDay !== selectedDay), newRun])
       setLoading('idle')
-      startTransition(() => router.refresh())
     } catch (err) {
       setLoading('idle')
       setErrorMsg(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -72,7 +68,6 @@ export function TrainSelector({ weekId, weekLabel, settings, existingRuns, canTr
       const newRuns: TrainRunApi[] = data.data
       setLocalRuns(newRuns)
       setLoading('idle')
-      startTransition(() => router.refresh())
     } catch (err) {
       setLoading('idle')
       setErrorMsg(err instanceof Error ? err.message : 'Erreur inconnue')

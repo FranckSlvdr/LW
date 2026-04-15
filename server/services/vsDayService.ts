@@ -2,6 +2,7 @@ import 'server-only'
 import { findVsDaysByWeek, upsertVsDay } from '@/server/repositories/vsDayRepository'
 import { findWeekById } from '@/server/repositories/weekRepository'
 import { upsertVsDaySchema } from '@/server/validators/vsDayValidator'
+import { invalidateWeekKpi } from '@/server/services/analyticsService'
 import { NotFoundError } from '@/lib/errors'
 import type { VsDayApi } from '@/types/api'
 import type { VsDay, DayOfWeek } from '@/types/domain'
@@ -26,5 +27,7 @@ export async function setVsDayEco(raw: unknown): Promise<VsDayApi> {
   if (!week) throw new NotFoundError('Week', input.weekId)
 
   const day = await upsertVsDay(input.weekId, input.dayOfWeek as DayOfWeek, input.isEco)
+  // Eco-day flag changes affect adjusted scores → invalidate KPI snapshot
+  invalidateWeekKpi(input.weekId)
   return toApi(day)
 }

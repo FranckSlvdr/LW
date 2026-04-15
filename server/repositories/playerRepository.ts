@@ -36,12 +36,7 @@ export async function findAllPlayers(activeOnly = true): Promise<Player[]> {
         FROM players p
         LEFT JOIN player_professions pp ON pp.player_id = p.id
         WHERE p.is_active = TRUE
-        ORDER BY
-          CASE p.current_rank
-            WHEN 'R5' THEN 1 WHEN 'R4' THEN 2 WHEN 'R3' THEN 3
-            WHEN 'R2' THEN 4 WHEN 'R1' THEN 5 ELSE 6
-          END,
-          p.name ASC
+        ORDER BY p.current_rank DESC NULLS LAST, p.name ASC
       `
     : await db<PlayerRow[]>`
         SELECT p.*, pp.profession_key, pp.level AS profession_level
@@ -125,10 +120,16 @@ export async function updatePlayer(
   if (input.generalLevel  !== undefined) sets.general_level  = input.generalLevel
 
   const rows = await db<PlayerRow[]>`
-    UPDATE players
-    SET ${db(sets)}
-    WHERE id = ${id}
-    RETURNING *
+    WITH updated AS (
+      UPDATE players
+      SET ${db(sets)}
+      WHERE id = ${id}
+      RETURNING id
+    )
+    SELECT p.*, pp.profession_key, pp.level AS profession_level
+    FROM players p
+    LEFT JOIN player_professions pp ON pp.player_id = p.id
+    WHERE p.id = (SELECT id FROM updated)
   `
   return rows[0] ? toPlayer(rows[0]) : null
 }
@@ -158,9 +159,9 @@ export async function deletePlayer(id: number): Promise<boolean> {
  * Returns inserted + updated count.
  */
 export async function bulkInsertPlayers(
-  players: Array<{ name: string; alias?: string; currentRank?: string | null; isActive?: boolean }>,
-): Promise<number> {
-  if (players.length === 0) return 0
+  players: Array<{ name: string; alias?: string; currentRank?: string | null; isActive?: boolean; generalLevel?: number | null }>,
+): Promise<{ count: number; nameMap: Map<string, number> }> {
+  if (players.length === 0) return { count: 0, nameMap: new Map() }
 
   const rows = players.map((p) => ({
     name:            p.name.trim(),
@@ -168,10 +169,11 @@ export async function bulkInsertPlayers(
     alias:           p.alias ?? null,
     current_rank:    p.currentRank ?? null,
     is_active:       p.isActive ?? true,
+    general_level:   p.generalLevel ?? null,
   }))
 
-  const result = await db`
-    INSERT INTO players ${db(rows, 'name', 'normalized_name', 'alias', 'current_rank', 'is_active')}
+  await db`
+    INSERT INTO players ${db(rows, 'name', 'normalized_name', 'alias', 'current_rank', 'is_active', 'general_level')}
     ON CONFLICT (normalized_name) DO UPDATE SET
       current_rank = CASE
         WHEN EXCLUDED.current_rank IS NOT NULL THEN EXCLUDED.current_rank
@@ -181,9 +183,20 @@ export async function bulkInsertPlayers(
         WHEN EXCLUDED.is_active = FALSE THEN FALSE
         ELSE players.is_active
       END,
+      general_level = CASE
+        WHEN EXCLUDED.general_level IS NOT NULL THEN EXCLUDED.general_level
+        ELSE players.general_level
+      END,
       updated_at = NOW()
   `
-  return result.count
+
+  // Fetch ids for the inserted/updated rows in a separate typed query
+  const normalizedNames = rows.map((r) => r.normalized_name)
+  const idRows = await db<Array<{ id: number; normalized_name: string }>>`
+    SELECT id, normalized_name FROM players WHERE normalized_name = ANY(${normalizedNames})
+  `
+  const nameMap = new Map(idRows.map((r) => [r.normalized_name, r.id]))
+  return { count: idRows.length, nameMap }
 }
 
 /** Set suggested rank and reason — called by the rank recommendation engine */

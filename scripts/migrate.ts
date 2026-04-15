@@ -16,7 +16,7 @@
  */
 
 import { config } from 'dotenv'
-import { resolve, basename } from 'path'
+import { resolve } from 'path'
 
 // Load .env.local before any other import that needs DATABASE_URL
 config({ path: resolve(process.cwd(), '.env.local') })

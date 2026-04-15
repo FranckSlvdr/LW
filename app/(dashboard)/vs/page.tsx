@@ -6,6 +6,7 @@ import { ScoreHeatmap } from '@/features/dashboard/components/ScoreHeatmap'
 import { InsightsPanel } from '@/features/dashboard/components/InsightsPanel'
 import { DailyScoresForm } from '@/features/vs/components/DailyScoresForm'
 import { EcoDayBar } from '@/features/vs/components/EcoDayBar'
+import { ExportButton } from '@/components/ui/ExportButton'
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton'
 import { getDashboardData } from '@/server/services/kpiService'
 import { getVsDaysForWeek } from '@/server/services/vsDayService'
@@ -13,7 +14,6 @@ import { getAllWeeks } from '@/server/services/weekService'
 import { getAllPlayers } from '@/server/services/playerService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
-import { interpolate } from '@/lib/i18n/utils'
 import { perf } from '@/lib/perf'
 import type { Dictionary } from '@/lib/i18n/types'
 import type { WeekApi } from '@/types/api'
@@ -28,16 +28,16 @@ async function VsContent({
   weekId,
   currentWeek,
   dict,
-  locale,
   canEdit,
   canEco,
+  manualEditDisabledReason,
 }: {
   weekId: number
   currentWeek: WeekApi
   dict: Dictionary
-  locale: string
   canEdit: boolean
   canEco: boolean
+  manualEditDisabledReason: string | null
 }) {
   const done = perf('VsContent')
 
@@ -48,7 +48,6 @@ async function VsContent({
   ])
   done()
 
-  const d = dict.dashboard
   const { summary, allKpis, insights } = dashboardData
 
   const existingScores = allKpis.flatMap((kpi) =>
@@ -65,7 +64,12 @@ async function VsContent({
     return (
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
-          <EcoDayBar weekId={weekId} vsDays={vsDays} canEdit={canEco} />
+          <EcoDayBar
+            weekId={weekId}
+            vsDays={vsDays}
+            canEdit={canEco}
+            disabledReason={manualEditDisabledReason ?? undefined}
+          />
           {canEdit && (
             <DailyScoresForm
               weekId={weekId}
@@ -73,6 +77,8 @@ async function VsContent({
               players={players}
               existingScores={existingScores}
               ecoDays={vsDays}
+              disabled={manualEditDisabledReason !== null}
+              disabledReason={manualEditDisabledReason ?? undefined}
             />
           )}
         </div>
@@ -80,13 +86,37 @@ async function VsContent({
     )
   }
 
+  const exportRows = allKpis.map((kpi) => {
+    const byDay = Object.fromEntries(kpi.dailyScores.map((ds) => [`Jour ${ds.dayOfWeek}`, ds.score]))
+    return {
+      'Rang':            kpi.rank,
+      'Joueur':          kpi.playerName,
+      'Alias':           kpi.playerAlias ?? '',
+      'Score total':     kpi.totalScore,
+      'Score brut':      kpi.rawTotalScore,
+      'Jours joués':     kpi.daysPlayed,
+      'Participation %': Math.round(kpi.participationRate * 100),
+      'Moyenne/jour':    Math.round(kpi.dailyAverage),
+      'Jours éco':       kpi.ecoDays,
+      ...byDay,
+    }
+  })
+
   return (
     <main className="flex-1 overflow-y-auto">
       <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
 
-        <EcoDayBar weekId={weekId} vsDays={vsDays} canEdit={canEco} />
+        <div className="flex items-center justify-between">
+          <EcoDayBar
+            weekId={weekId}
+            vsDays={vsDays}
+            canEdit={canEco}
+            disabledReason={manualEditDisabledReason ?? undefined}
+          />
+          <ExportButton rows={exportRows} filename={currentWeek.label} sheetName="Scores VS" />
+        </div>
 
-        <section>
+        <section aria-label="KPI semaine">
           <KpiCards
             summary={summary}
             totalRegisteredPlayers={players.length}
@@ -114,6 +144,8 @@ async function VsContent({
               players={players}
               existingScores={existingScores}
               ecoDays={vsDays}
+              disabled={manualEditDisabledReason !== null}
+              disabledReason={manualEditDisabledReason ?? undefined}
             />
           </section>
         )}
@@ -188,6 +220,12 @@ export default async function VsPage({ searchParams }: PageProps) {
   const selectedWeekId = weekIdParam ? Number(weekIdParam) : weeks[0]!.id
   const validWeekId    = weeks.find((w) => w.id === selectedWeekId)?.id ?? weeks[0]!.id
   const currentWeek    = weeks.find((w) => w.id === validWeekId)!
+  const isLatestWeek   = weeks[0]?.id === currentWeek.id
+  const manualEditDisabledReason = currentWeek.isLocked
+    ? 'Semaine verrouillee : les saisies manuelles sont bloquees.'
+    : !isLatestWeek
+    ? 'Les saisies manuelles sont autorisees uniquement sur la semaine active.'
+    : null
 
   const dict = await getDict(locale)
 
@@ -199,9 +237,9 @@ export default async function VsPage({ searchParams }: PageProps) {
           weekId={validWeekId}
           currentWeek={currentWeek}
           dict={dict}
-          locale={locale}
-          canEdit={canEdit}
-          canEco={canEco}
+          canEdit={canEdit && manualEditDisabledReason === null}
+          canEco={canEco && manualEditDisabledReason === null}
+          manualEditDisabledReason={manualEditDisabledReason}
         />
       </Suspense>
     </>

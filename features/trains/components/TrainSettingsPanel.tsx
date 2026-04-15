@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { useI18n } from '@/lib/i18n/client'
 import type { TrainSettingsApi } from '@/types/api'
@@ -15,8 +14,6 @@ export function TrainSettingsPanel({ settings: initial }: TrainSettingsPanelProp
   const t                   = dict.trains
   const [s, setS]           = useState(initial)
   const [status, setStatus] = useState<'idle' | 'loading' | 'saved' | 'error'>('idle')
-  const router              = useRouter()
-  const [, startTransition] = useTransition()
 
   async function handleSave() {
     setStatus('loading')
@@ -27,8 +24,9 @@ export function TrainSettingsPanel({ settings: initial }: TrainSettingsPanelProp
         body: JSON.stringify(s),
       })
       if (!res.ok) throw new Error('Erreur')
+      const data = await res.json().catch(() => ({}))
+      if (data?.data) setS(data.data)
       setStatus('saved')
-      startTransition(() => router.refresh())
       setTimeout(() => setStatus('idle'), 2000)
     } catch {
       setStatus('error')

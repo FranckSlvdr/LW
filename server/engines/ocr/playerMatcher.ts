@@ -30,8 +30,6 @@ import type { PlayerForMatching, PlayerMatchResult } from './types'
 export function matchPlayer(
   rawName: string,
   players: PlayerForMatching[],
-  /** Future: known OCR correction mappings */
-  _corrections: Record<string, string> = {},
 ): PlayerMatchResult | null {
   if (players.length === 0) return null
   if (!rawName || rawName.trim().length === 0) return null

@@ -138,19 +138,18 @@ export async function markEcoDays(
 ): Promise<void> {
   if (ecoEntries.length === 0) return
 
-  // Reset all eco flags for the week first, then set the detected ones
+  const playerIds  = ecoEntries.map((e) => e.playerId)
+  const dayOfWeeks = ecoEntries.map((e) => e.dayOfWeek)
+
+  // 2 queries total regardless of entry count (bulk UNNEST instead of N loops)
   await db.begin(async (tx) => {
+    await tx`UPDATE daily_scores SET is_eco = FALSE WHERE week_id = ${weekId}`
     await tx`
-      UPDATE daily_scores SET is_eco = FALSE WHERE week_id = ${weekId}
+      UPDATE daily_scores SET is_eco = TRUE
+      WHERE week_id = ${weekId}
+        AND (player_id, day_of_week) IN (
+          SELECT * FROM UNNEST(${playerIds}::int[], ${dayOfWeeks}::int[])
+        )
     `
-    for (const entry of ecoEntries) {
-      await tx`
-        UPDATE daily_scores
-        SET is_eco = TRUE
-        WHERE week_id = ${weekId}
-          AND player_id = ${entry.playerId}
-          AND day_of_week = ${entry.dayOfWeek}
-      `
-    }
   })
 }

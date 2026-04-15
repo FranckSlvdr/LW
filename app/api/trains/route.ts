@@ -1,7 +1,6 @@
 import { ok, created, fail } from '@/lib/apiResponse'
 import { requireAuth } from '@/server/security/authGuard'
 import { getTrainRunsForWeek, triggerTrainSelection, getRecentTrainHistory } from '@/server/services/trainService'
-import { ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
 const triggerSchema = z.object({

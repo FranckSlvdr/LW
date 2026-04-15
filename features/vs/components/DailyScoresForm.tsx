@@ -26,9 +26,19 @@ interface DailyScoresFormProps {
   players:        PlayerApi[]
   existingScores: ExistingScore[]
   ecoDays?:       VsDayApi[]
+  disabled?:      boolean
+  disabledReason?: string
 }
 
-export function DailyScoresForm({ weekId, weekLabel, players, existingScores, ecoDays = [] }: DailyScoresFormProps) {
+export function DailyScoresForm({
+  weekId,
+  weekLabel,
+  players,
+  existingScores,
+  ecoDays = [],
+  disabled = false,
+  disabledReason,
+}: DailyScoresFormProps) {
   // Build a lookup: `${playerId}:${dayOfWeek}` → score string
   const existingMap = new Map(existingScores.map((s) => [`${s.playerId}:${s.dayOfWeek}`, s.score]))
   const ecoSet = new Set<number>(ecoDays.filter((d) => d.isEco).map((d) => d.dayOfWeek as number))
@@ -114,7 +124,7 @@ export function DailyScoresForm({ weekId, weekLabel, players, existingScores, ec
           return (
             <button
               key={day}
-              onClick={() => { setSelectedDay(day); setMsg(null) }}
+              onClick={() => { if (!disabled) { setSelectedDay(day); setMsg(null) } }}
               className={[
                 'px-3 py-2 rounded-lg text-sm font-medium transition-colors border flex items-center gap-1.5',
                 selectedDay === day
@@ -183,6 +193,7 @@ export function DailyScoresForm({ weekId, weekLabel, players, existingScores, ec
               <input
                 type="number"
                 min={0}
+                disabled={disabled}
                 value={value}
                 onChange={(e) => updateInput(player.id, selectedDay, e.target.value)}
                 placeholder="0"
@@ -208,11 +219,14 @@ export function DailyScoresForm({ weekId, weekLabel, players, existingScores, ec
       <div className="mt-4 flex items-center gap-4">
         <button
           onClick={handleSave}
-          disabled={status === 'loading' || weekId === 0 || players.length === 0}
+          disabled={status === 'loading' || weekId === 0 || players.length === 0 || disabled}
           className="px-5 py-2 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-40"
         >
           {status === 'loading' ? 'Sauvegarde…' : `Sauvegarder ${DAY_LABELS[selectedDay]}`}
         </button>
+        {disabled && disabledReason && (
+          <span className="text-sm text-[var(--color-text-muted)]">{disabledReason}</span>
+        )}
         {msg && (
           <span className={`text-sm ${status === 'error' ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}`}>
             {msg}

@@ -15,7 +15,6 @@ export interface Dictionary {
     imports: string
     events: string
     professions: string
-    ranking: string
     settings: string
   }
 
@@ -133,20 +132,6 @@ export interface Dictionary {
     importPrefix: string
   }
 
-  // ── Ranking table ───────────────────────────────────────────────────────────
-  ranking: {
-    title: string
-    /** "{count} players · click a header to sort" */
-    subtitle: string
-    colRank: string
-    colPlayer: string
-    colTotal: string
-    colAvgDay: string
-    colParticipation: string
-    colTrend: string
-    colEco: string
-    absent: string
-  }
 
   // ── Events page ─────────────────────────────────────────────────────────────
   events: {

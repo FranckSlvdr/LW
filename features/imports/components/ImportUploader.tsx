@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useRef, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import type { WeekApi } from '@/types/api'
 
@@ -16,8 +15,6 @@ export function ImportUploader({ weeks }: ImportUploaderProps) {
   const [status, setStatus]         = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [message, setMessage]       = useState<string | null>(null)
   const fileRef                     = useRef<HTMLInputElement>(null)
-  const router                      = useRouter()
-  const [, startTransition]         = useTransition()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -44,7 +41,6 @@ export function ImportUploader({ weeks }: ImportUploaderProps) {
       setMessage(`✅ ${result.rowsImported} lignes importées${result.rowsSkipped ? ` · ${result.rowsSkipped} ignorées` : ''}`)
       setFile(null)
       if (fileRef.current) fileRef.current.value = ''
-      startTransition(() => router.refresh())
     } catch (err) {
       setStatus('error')
       setMessage(err instanceof Error ? err.message : 'Erreur inconnue')

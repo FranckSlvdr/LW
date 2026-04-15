@@ -1,4 +1,5 @@
 import 'server-only'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import { processPlayerImport, processScoreImport } from '@/server/engines/importProcessor'
 import {
   createImport,
@@ -7,9 +8,11 @@ import {
   findRecentImports,
 } from '@/server/repositories/importRepository'
 import { bulkInsertPlayers, findPlayerNameMap } from '@/server/repositories/playerRepository'
+import { bulkUpsertProfessions } from '@/server/repositories/professionRepository'
 import { upsertScoresBulk } from '@/server/repositories/scoreRepository'
 import { findWeekById } from '@/server/repositories/weekRepository'
 import { invalidatePlayersCache } from '@/server/services/playerService'
+import { invalidateWeekKpi, invalidateAllKpis } from '@/server/services/analyticsService'
 import { NotFoundError, UnprocessableError } from '@/lib/errors'
 import { logger } from '@/lib/logger'
 import { APP_CONFIG } from '@/config/app.config'
@@ -19,7 +22,16 @@ import type { Import } from '@/types/domain'
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
 export async function getRecentImports(limit = 5): Promise<Import[]> {
-  return findRecentImports(limit)
+  const imports = await getRecentImportsCached(limit)()
+  return imports.map((imp) => ({ ...imp, createdAt: new Date(imp.createdAt) }))
+}
+
+function getRecentImportsCached(limit: number) {
+  return unstable_cache(
+    async () => findRecentImports(limit),
+    ['recent-imports', String(limit)],
+    { revalidate: 30, tags: ['imports'] },
+  )
 }
 
 // ─── Player import ────────────────────────────────────────────────────────────
@@ -68,9 +80,29 @@ export async function importPlayersFromCsv(
     ])
 
     // Insert valid players
-    const inserted = result.valid.length > 0
-      ? await bulkInsertPlayers(result.valid.map((r) => r.normalized))
-      : 0
+    let inserted = 0
+    if (result.valid.length > 0) {
+      const { count, nameMap } = await bulkInsertPlayers(result.valid.map((r) => r.normalized))
+      inserted = count
+
+      // Upsert professions for players that provided profession data
+      const professionEntries = result.valid
+        .filter((r) => r.normalized.professionKey !== null || r.normalized.professionLevel !== null)
+        .map((r) => {
+          const playerId = nameMap.get(r.normalized.normalizedName)
+          if (!playerId) return null
+          return {
+            playerId,
+            professionKey:   r.normalized.professionKey ?? null,
+            professionLevel: r.normalized.professionLevel ?? null,
+          }
+        })
+        .filter((e): e is NonNullable<typeof e> => e !== null)
+
+      if (professionEntries.length > 0) {
+        await bulkUpsertProfessions(professionEntries)
+      }
+    }
 
     const status = result.errors.length > 0 ? 'partial' : 'success'
     await updateImportStatus(importRecord.id, {
@@ -81,7 +113,13 @@ export async function importPlayersFromCsv(
       errors: result.errors.map((e) => e.error),
     })
 
-    if (inserted > 0) invalidatePlayersCache()
+    if (inserted > 0) {
+      invalidatePlayersCache()
+      invalidateAllKpis() // player roster change affects all week snapshots
+    }
+    try {
+      revalidateTag('imports', { expire: 0 })
+    } catch {}
 
     logger.info('Player import completed', {
       importId: importRecord.id,
@@ -191,6 +229,11 @@ export async function importScoresFromCsv(
       rowsSkipped: result.summary.skipped + unresolvedErrors.length,
       errors: allErrors.map((e) => e.error),
     })
+
+    if (imported > 0) invalidateWeekKpi(weekId)
+    try {
+      revalidateTag('imports', { expire: 0 })
+    } catch {}
 
     return {
       importId: importRecord.id,

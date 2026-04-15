@@ -11,11 +11,13 @@ import type { Permission, UserRole, AuthUser } from '@/types/domain'
 const PERMISSION_MATRIX: Record<Permission, UserRole[]> = {
   // All authenticated users
   'dashboard:view': ['super_admin', 'admin', 'manager', 'viewer'],
-  'ranking:view':   ['super_admin', 'admin', 'manager', 'viewer'],
 
   // Import operations
   'players:import': ['super_admin', 'admin', 'manager'],
   'scores:import':  ['super_admin', 'admin', 'manager'],
+
+  // Week management
+  'weeks:manage':   ['super_admin', 'admin'],
 
   // Edit operations
   'scores:edit':    ['super_admin', 'admin', 'manager'],
@@ -78,7 +80,7 @@ export const getSessionUser = cache(async (): Promise<AuthUser | null> => {
 
   const { user, shouldRefresh } = verified
 
-  // DB validation: single JOIN query instead of two parallel round-trips
+  // DB validation: verify token_version and sync role/name/email
   const result = await findUserWithTokenVersion(user.id)
   if (!result) return null
   if (result.tokenVersion !== user.tokenVersion) return null

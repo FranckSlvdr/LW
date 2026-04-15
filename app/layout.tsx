@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import { I18nProvider } from '@/lib/i18n/client'
@@ -22,6 +23,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <I18nProvider locale={locale} dict={dict}>
           {children}
         </I18nProvider>
+        <SpeedInsights />
       </body>
     </html>
   )

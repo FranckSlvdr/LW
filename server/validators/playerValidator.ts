@@ -58,13 +58,18 @@ export const updatePlayerSchema = z
     { message: 'leftAt doit être postérieur à joinedAt', path: ['leftAt'] },
   )
 
+const PROFESSION_KEYS_CSV = ['farmer', 'fighter', 'builder', 'researcher', 'explorer'] as const
+
 /**
  * Used during CSV import — all fields arrive as raw strings.
  *
  * Expected CSV columns:
- *   name          (required) — player in-game name
- *   current_rank  (optional) — R1..R5, blank = unclassified
- *   is_active     (optional) — TRUE/FALSE, blank = TRUE
+ *   name             (required) — player in-game name
+ *   current_rank     (optional) — R1..R5, blank = unclassified
+ *   is_active        (optional) — TRUE/FALSE, blank = TRUE
+ *   general_level    (optional) — integer 1–99
+ *   profession_key   (optional) — farmer | fighter | builder | researcher | explorer
+ *   profession_level (optional) — integer 1–10, required if profession_key is set
  */
 export const importPlayerRowSchema = z.object({
   name: playerName,
@@ -86,6 +91,34 @@ export const importPlayerRowSchema = z.object({
       { message: 'is_active invalide — valeurs acceptées : TRUE ou FALSE' },
     )
     .optional(),
+  general_level: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v === '' || v === undefined ? undefined : v))
+    .refine(
+      (v) => v === undefined || (!isNaN(Number(v)) && Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 99),
+      { message: 'general_level invalide — entier entre 1 et 99' },
+    ),
+  profession_key: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .optional()
+    .transform((v) => (v === '' || v === undefined ? undefined : v))
+    .refine(
+      (v) => v === undefined || (PROFESSION_KEYS_CSV as readonly string[]).includes(v),
+      { message: `profession_key invalide — valeurs : ${PROFESSION_KEYS_CSV.join(', ')}` },
+    ),
+  profession_level: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v === '' || v === undefined ? undefined : v))
+    .refine(
+      (v) => v === undefined || (!isNaN(Number(v)) && Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 10),
+      { message: 'profession_level invalide — entier entre 1 et 10' },
+    ),
 })
 
 // ─── Inferred types ───────────────────────────────────────────────────────────

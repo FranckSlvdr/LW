@@ -11,7 +11,11 @@ export default function LoginPage() {
   const [loading, setLoading]   = useState(false)
   const router                  = useRouter()
   const searchParams            = useSearchParams()
-  const redirect                = searchParams.get('redirect') ?? '/dashboard'
+  const rawRedirect             = searchParams.get('redirect') ?? ''
+  // Only allow relative paths — reject anything with a scheme or protocol-relative URLs
+  const redirect                = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
+    ? rawRedirect
+    : '/dashboard'
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

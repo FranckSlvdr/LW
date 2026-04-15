@@ -20,8 +20,8 @@ export async function DELETE(_request: Request, { params }: Params) {
   try {
     await requireAuth('players:manage')
     const { id } = await params
-    await deleteExistingPlayer(Number(id))
-    return ok({ deleted: true })
+    const result = await deleteExistingPlayer(Number(id))
+    return ok(result)
   } catch (err) {
     return fail(err)
   }

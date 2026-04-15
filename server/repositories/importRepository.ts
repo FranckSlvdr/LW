@@ -17,7 +17,7 @@ function toImport(row: ImportRow_DB): Import {
     rowsSkipped: row.rows_skipped,
     errorsJson: (row.errors_json as ImportError[]) ?? null,
     importedBy: row.imported_by,
-    createdAt: row.created_at,
+    createdAt: new Date(row.created_at),
   }
 }
 
@@ -30,7 +30,7 @@ function toImportRow(row: ImportRowDetailRow): ImportRow {
     normalizedDataJson: (row.normalized_data_json as Record<string, unknown>) ?? null,
     status: row.status as ImportRow['status'],
     errorMessage: row.error_message,
-    createdAt: row.created_at,
+    createdAt: new Date(row.created_at),
   }
 }
 

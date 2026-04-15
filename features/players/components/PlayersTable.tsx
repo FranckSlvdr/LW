@@ -1,26 +1,21 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { PLAYER_RANKS, RANK_LABEL } from '@/types/domain'
-import type { PlayerApi } from '@/types/api'
+import type { PlayerApi, ProfessionApi } from '@/types/api'
 import type { PlayerRank } from '@/types/domain'
 
-// ─── Profession helpers ───────────────────────────────────────────────────────
-
 const PROFESSION_ICON: Record<string, string> = {
-  farmer:     '🌾',
-  fighter:    '⚔️',
-  builder:    '🏗️',
+  farmer: '🌾',
+  fighter: '⚔️',
+  builder: '🏗️',
   researcher: '🔬',
-  explorer:   '🗺️',
+  explorer: '🗺️',
 }
 
 const MAX_PROFESSION_LEVEL = 10
-
-// ─── Rank display helpers ─────────────────────────────────────────────────────
 
 const RANK_BADGE_VARIANT: Record<PlayerRank, 'danger' | 'warning' | 'success' | 'info' | 'neutral'> = {
   R5: 'danger',
@@ -40,114 +35,303 @@ const RANK_SHORT: Record<PlayerRank, string> = {
 
 const PROFESSION_KEYS = Object.keys(PROFESSION_ICON)
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 interface PlayersTableProps {
   players: PlayerApi[]
   canManage: boolean
 }
 
 type FilterStatus = 'all' | 'active' | 'inactive'
-type FilterRank   = 'all' | 'unclassified' | PlayerRank
+type FilterRank = 'all' | 'unclassified' | PlayerRank
+type FilterLevel = number | null
 
-interface EditingName       { id: number; value: string }
-interface EditingLevel      { id: number; value: string }
+interface EditingName { id: number; value: string }
+interface EditingLevel { id: number; value: string }
 interface EditingProfession { id: number; key: string; level: string }
 
-export function PlayersTable({ players, canManage }: PlayersTableProps) {
-  const [showAdd,          setShowAdd]        = useState(false)
-  const [filterStatus,     setStatus]         = useState<FilterStatus>('all')
-  const [filterRank,       setRank]           = useState<FilterRank>('all')
-  const [confirmDelId,     setConfirmDel]     = useState<number | null>(null)
-  const [deleteError,      setDeleteError]    = useState<string | null>(null)
-  const [isDeleting,       setIsDeleting]     = useState(false)
-  const [editingName,      setEditingName]    = useState<EditingName | null>(null)
-  const [editingLevel,     setEditingLevel]   = useState<EditingLevel | null>(null)
-  const [editingProfession,setEditingProf]    = useState<EditingProfession | null>(null)
-  const router                               = useRouter()
-  const [isPending, startTransition]         = useTransition()
+function comparePlayers(a: PlayerApi, b: PlayerApi): number {
+  const rankA = a.currentRank ?? ''
+  const rankB = b.currentRank ?? ''
 
-  const filtered = players.filter((p) => {
-    const statusOk = filterStatus === 'all' || (filterStatus === 'active' ? p.isActive : !p.isActive)
+  if (rankA !== rankB) {
+    if (!rankA) return 1
+    if (!rankB) return -1
+    return rankB.localeCompare(rankA)
+  }
+
+  return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' })
+}
+
+function sortPlayers(players: PlayerApi[]): PlayerApi[] {
+  return [...players].sort(comparePlayers)
+}
+
+export function PlayersTable({ players, canManage }: PlayersTableProps) {
+  const [rows, setRows] = useState(() => sortPlayers(players))
+  const [showAdd, setShowAdd] = useState(false)
+  const [filterStatus, setStatus] = useState<FilterStatus>('all')
+  const [filterRank, setRank] = useState<FilterRank>('all')
+  const [filterLevel, setLevel] = useState<FilterLevel>(null)
+  const [confirmDelId, setConfirmDel] = useState<number | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [editingName, setEditingName] = useState<EditingName | null>(null)
+  const [editingLevel, setEditingLevel] = useState<EditingLevel | null>(null)
+  const [editingProfession, setEditingProf] = useState<EditingProfession | null>(null)
+
+  const filtered = rows.filter((player) => {
+    const statusOk =
+      filterStatus === 'all' || (filterStatus === 'active' ? player.isActive : !player.isActive)
     const rankOk =
       filterRank === 'all' ||
-      (filterRank === 'unclassified' ? !p.currentRank : p.currentRank === filterRank)
-    return statusOk && rankOk
+      (filterRank === 'unclassified' ? !player.currentRank : player.currentRank === filterRank)
+    const levelOk =
+      filterLevel === null || player.generalLevel === filterLevel
+    return statusOk && rankOk && levelOk
   })
 
+  function replacePlayer(nextPlayer: PlayerApi) {
+    setRows((current) =>
+      sortPlayers(current.map((player) => (player.id === nextPlayer.id ? nextPlayer : player))),
+    )
+  }
+
+  function updatePlayer(playerId: number, updater: (player: PlayerApi) => PlayerApi) {
+    setRows((current) =>
+      sortPlayers(current.map((player) => (player.id === playerId ? updater(player) : player))),
+    )
+  }
+
+  function getPlayerById(playerId: number): PlayerApi | undefined {
+    return rows.find((player) => player.id === playerId)
+  }
+
   async function handlePatch(playerId: number, body: Record<string, unknown>) {
-    await fetch(`/api/players/${playerId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    startTransition(() => router.refresh())
+    setDeleteError(null)
+    setIsSaving(true)
+
+    try {
+      const res = await fetch(`/api/players/${playerId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la mise a jour')
+        return
+      }
+
+      const updated = (data as { data?: PlayerApi }).data
+      if (updated) replacePlayer(updated)
+    } catch {
+      setDeleteError('Erreur reseau, veuillez reessayer')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleRankChange(playerId: number, rank: PlayerRank | null) {
+    const previousPlayer = getPlayerById(playerId)
+    if (!previousPlayer || previousPlayer.currentRank === rank) return
+
+    updatePlayer(playerId, (player) => ({
+      ...player,
+      currentRank: rank,
+    }))
+
+    setDeleteError(null)
+    setIsSaving(true)
+
+    try {
+      const res = await fetch(`/api/players/${playerId}/rank`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentRank: rank }),
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        updatePlayer(playerId, () => previousPlayer)
+        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la mise a jour du rang')
+        return
+      }
+
+      const updated = (data as { data?: PlayerApi }).data
+      if (updated) replacePlayer(updated)
+    } catch {
+      updatePlayer(playerId, () => previousPlayer)
+      setDeleteError('Erreur reseau, veuillez reessayer')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   async function handleDelete(playerId: number) {
     setDeleteError(null)
-    setIsDeleting(true)
+    setIsSaving(true)
+
     try {
       const res = await fetch(`/api/players/${playerId}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
         setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la suppression')
         return
       }
+
+      const result = (data as { data?: { mode?: string; player?: PlayerApi } }).data
+      if (result?.mode === 'deactivated' && result.player) {
+        replacePlayer(result.player)
+        setDeleteError('Suppression impossible car ce joueur a un historique. Il a ete desactive a la place.')
+      } else {
+        setRows((current) => current.filter((player) => player.id !== playerId))
+      }
+
       setConfirmDel(null)
-      router.refresh()
     } catch {
-      setDeleteError('Erreur réseau — veuillez réessayer')
+      setDeleteError('Erreur reseau, veuillez reessayer')
     } finally {
-      setIsDeleting(false)
+      setIsSaving(false)
     }
   }
 
   async function handleSaveName(playerId: number) {
     if (!editingName || editingName.id !== playerId) return
+
     const name = editingName.value.trim()
     setEditingName(null)
     if (!name) return
-    const currentPlayer = players.find((p) => p.id === playerId)
+
+    const currentPlayer = rows.find((player) => player.id === playerId)
     if (name === currentPlayer?.name) return
+
     await handlePatch(playerId, { name })
   }
 
   async function handleSaveLevel(playerId: number) {
     if (!editingLevel || editingLevel.id !== playerId) return
+
     const raw = editingLevel.value.trim()
     setEditingLevel(null)
     const generalLevel = raw === '' ? null : Number(raw)
-    if (isNaN(generalLevel as number)) return
-    const currentPlayer = players.find((p) => p.id === playerId)
+    if (generalLevel !== null && Number.isNaN(generalLevel)) return
+
+    const currentPlayer = rows.find((player) => player.id === playerId)
     if (generalLevel === currentPlayer?.generalLevel) return
+
     await handlePatch(playerId, { generalLevel })
   }
 
   async function handleSaveProfession(playerId: number) {
     if (!editingProfession || editingProfession.id !== playerId) return
+
     const { key, level: rawLevel } = editingProfession
     setEditingProf(null)
+
     const level = Number(rawLevel)
-    if (!key || isNaN(level) || level < 1 || level > MAX_PROFESSION_LEVEL) return
-    await fetch('/api/professions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerId, professionKey: key, level }),
-    })
-    startTransition(() => router.refresh())
+    if (!key || Number.isNaN(level) || level < 1 || level > MAX_PROFESSION_LEVEL) return
+
+    setDeleteError(null)
+    setIsSaving(true)
+
+    try {
+      const res = await fetch('/api/professions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, professionKey: key, level }),
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la mise a jour de la profession')
+        return
+      }
+
+      const profession = (data as { data?: ProfessionApi }).data
+      if (profession) {
+        updatePlayer(playerId, (player) => ({
+          ...player,
+          professionKey: profession.professionKey,
+          professionLevel: profession.level,
+        }))
+      }
+    } catch {
+      setDeleteError('Erreur reseau, veuillez reessayer')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  // Rank counts for summary strip
-  const rankCounts = PLAYER_RANKS.reduce<Record<string, number>>((acc, r) => {
-    acc[r] = players.filter((p) => p.isActive && p.currentRank === r).length
+  function handlePlayerCreated(player: PlayerApi) {
+    setRows((current) => sortPlayers([...current, player]))
+    setShowAdd(false)
+  }
+
+  const rankCounts = PLAYER_RANKS.reduce<Record<string, number>>((acc, rank) => {
+    acc[rank] = rows.filter((player) => player.isActive && player.currentRank === rank).length
     return acc
   }, {})
-  const unclassified = players.filter((p) => p.isActive && !p.currentRank).length
+
+  const activePlayers = rows.filter((player) => player.isActive)
+  const inactiveCount = rows.length - activePlayers.length
+  const unclassified = rows.filter((player) => player.isActive && !player.currentRank).length
+  const levelCounts = activePlayers.reduce<Record<number, number>>((acc, player) => {
+    if (player.generalLevel == null) return acc
+    acc[player.generalLevel] = (acc[player.generalLevel] ?? 0) + 1
+    return acc
+  }, {})
+  const sortedLevels = Object.entries(levelCounts)
+    .map(([level, count]) => ({ level: Number(level), count }))
+    .sort((a, b) => b.level - a.level)
+  const unfilledLevels = activePlayers.filter((player) => player.generalLevel == null).length
 
   return (
     <div className="space-y-4">
-      {/* Rank summary strip */}
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <StatPill label="Actifs" value={String(activePlayers.length)} />
+        <StatPill label="Inactifs" value={String(inactiveCount)} dim />
+        {PLAYER_RANKS.slice().reverse().map((rank) => (
+          <StatPill key={rank} label={rank} value={String(rankCounts[rank] ?? 0)} />
+        ))}
+        {unclassified > 0 && (
+          <StatPill label="Non classés" value={String(unclassified)} dim />
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 card-shadow">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className="label-sm">Repartition par level</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Joueurs actifs uniquement</p>
+          </div>
+          {unfilledLevels > 0 && (
+            <Badge variant="neutral">{unfilledLevels} sans level</Badge>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {sortedLevels.length > 0 ? (
+            sortedLevels.map(({ level, count }) => (
+              <button
+                key={level}
+                onClick={() => setLevel(filterLevel === level ? null : level)}
+                className={[
+                  'inline-flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors cursor-pointer',
+                  filterLevel === level
+                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                    : 'border-[var(--color-border)] bg-[var(--color-surface-raised)] hover:border-[var(--color-accent)]/50',
+                ].join(' ')}
+              >
+                <span className="text-sm font-semibold text-[var(--color-text-primary)]">Lvl {level}</span>
+                <span className="text-xs text-[var(--color-text-muted)]">{count} joueur{count > 1 ? 's' : ''}</span>
+              </button>
+            ))
+          ) : (
+            <p className="text-sm text-[var(--color-text-muted)]">Aucun level renseigne</p>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {PLAYER_RANKS.slice().reverse().map((rank) => (
           <button
@@ -182,23 +366,22 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
         <div className="p-5 pb-3">
           <CardHeader
             title="Liste des joueurs"
-            subtitle={`${filtered.length} / ${players.length} joueurs`}
+            subtitle={`${filtered.length} / ${rows.length} joueurs`}
             action={
               <div className="flex items-center gap-2 flex-wrap">
-                {/* Status filter */}
                 <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden text-xs">
-                  {(['all', 'active', 'inactive'] as const).map((f) => (
+                  {(['all', 'active', 'inactive'] as const).map((filter) => (
                     <button
-                      key={f}
-                      onClick={() => setStatus(f)}
+                      key={filter}
+                      onClick={() => setStatus(filter)}
                       className={[
                         'px-3 py-1.5 transition-colors',
-                        filterStatus === f
+                        filterStatus === filter
                           ? 'bg-[var(--color-accent)] text-white'
                           : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)]',
                       ].join(' ')}
                     >
-                      {f === 'all' ? 'Tous' : f === 'active' ? 'Actifs' : 'Inactifs'}
+                      {filter === 'all' ? 'Tous' : filter === 'active' ? 'Actifs' : 'Inactifs'}
                     </button>
                   ))}
                 </div>
@@ -217,7 +400,10 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
 
         {canManage && showAdd && (
           <div className="mx-5 mb-4">
-            <AddPlayerForm onDone={() => { setShowAdd(false); startTransition(() => router.refresh()) }} />
+            <AddPlayerForm
+              onCancel={() => setShowAdd(false)}
+              onCreated={handlePlayerCreated}
+            />
           </div>
         )}
 
@@ -258,7 +444,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         onChange={(e) => setEditingName({ id: player.id, value: e.target.value })}
                         onBlur={() => handleSaveName(player.id)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveName(player.id)
+                          if (e.key === 'Enter') void handleSaveName(player.id)
                           if (e.key === 'Escape') setEditingName(null)
                         }}
                         className="w-full px-2 py-0.5 text-sm rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
@@ -274,13 +460,12 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                     )}
                   </td>
 
-                  {/* Current rank */}
                   <td className="px-5 py-3">
                     {canManage ? (
                       <RankSelect
                         value={player.currentRank}
-                        disabled={isPending}
-                        onChange={(rank) => handlePatch(player.id, { currentRank: rank })}
+                        disabled={isSaving}
+                        onChange={(rank) => void handleRankChange(player.id, rank)}
                       />
                     ) : player.currentRank ? (
                       <Badge variant={RANK_BADGE_VARIANT[player.currentRank as PlayerRank]}>
@@ -291,7 +476,6 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                     )}
                   </td>
 
-                  {/* Suggested rank — read-only with reason tooltip */}
                   <td className="px-5 py-3">
                     {player.suggestedRank ? (
                       <span title={player.rankReason ?? undefined}>
@@ -307,7 +491,6 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                     )}
                   </td>
 
-                  {/* Profession */}
                   <td className="px-4 py-3 text-center">
                     {canManage && editingProfession?.id === player.id ? (
                       <span className="inline-flex items-center gap-1">
@@ -317,8 +500,8 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                           onChange={(e) => setEditingProf({ ...editingProfession, key: e.target.value })}
                           className="text-xs px-1 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
                         >
-                          {PROFESSION_KEYS.map((k) => (
-                            <option key={k} value={k}>{PROFESSION_ICON[k]} {k}</option>
+                          {PROFESSION_KEYS.map((key) => (
+                            <option key={key} value={key}>{PROFESSION_ICON[key]} {key}</option>
                           ))}
                         </select>
                         <input
@@ -328,13 +511,13 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                           value={editingProfession.level}
                           onChange={(e) => setEditingProf({ ...editingProfession, level: e.target.value })}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveProfession(player.id)
+                            if (e.key === 'Enter') void handleSaveProfession(player.id)
                             if (e.key === 'Escape') setEditingProf(null)
                           }}
                           className="w-10 text-xs px-1 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
                         />
                         <button
-                          onClick={() => handleSaveProfession(player.id)}
+                          onClick={() => void handleSaveProfession(player.id)}
                           className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-white"
                         >✓</button>
                         <button
@@ -366,7 +549,6 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                     )}
                   </td>
 
-                  {/* General level */}
                   <td className="px-4 py-3 text-center">
                     {canManage && editingLevel?.id === player.id ? (
                       <input
@@ -378,7 +560,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         onChange={(e) => setEditingLevel({ id: player.id, value: e.target.value })}
                         onBlur={() => handleSaveLevel(player.id)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveLevel(player.id)
+                          if (e.key === 'Enter') void handleSaveLevel(player.id)
                           if (e.key === 'Escape') setEditingLevel(null)
                         }}
                         className="w-14 text-xs px-1.5 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] text-center focus:outline-none"
@@ -414,11 +596,11 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         <span className="inline-flex items-center gap-1.5">
                           <span className="text-xs text-[var(--color-danger)] mr-1">Supprimer ?</span>
                           <button
-                            onClick={() => handleDelete(player.id)}
-                            disabled={isDeleting}
+                            onClick={() => void handleDelete(player.id)}
+                            disabled={isSaving}
                             className="text-xs px-2.5 py-1 rounded-md bg-[var(--color-danger)] text-white hover:opacity-90 disabled:opacity-40"
                           >
-                            {isDeleting ? '…' : 'Confirmer'}
+                            {isSaving ? '…' : 'Confirmer'}
                           </button>
                           <button
                             onClick={() => setConfirmDel(null)}
@@ -430,15 +612,15 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                       ) : (
                         <span className="inline-flex items-center gap-1.5">
                           <button
-                            onClick={() => handlePatch(player.id, { isActive: !player.isActive })}
-                            disabled={isPending}
+                            onClick={() => void handlePatch(player.id, { isActive: !player.isActive })}
+                            disabled={isSaving}
                             className="text-xs px-2.5 py-1 rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-40"
                           >
                             {player.isActive ? 'Désactiver' : 'Réactiver'}
                           </button>
                           <button
                             onClick={() => setConfirmDel(player.id)}
-                            disabled={isPending}
+                            disabled={isSaving}
                             className="text-xs px-2.5 py-1 rounded-md border border-[var(--color-danger)]/30 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors disabled:opacity-40"
                           >
                             Supprimer
@@ -464,7 +646,16 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
   )
 }
 
-// ─── Rank select ──────────────────────────────────────────────────────────────
+function StatPill({ label, value, dim }: { label: string; value: string; dim?: boolean }) {
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 card-shadow">
+      <p className={`label-sm mb-1 ${dim ? 'text-[var(--color-text-muted)]' : ''}`}>{label}</p>
+      <p className={`text-xl font-bold ${dim ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+        {value}
+      </p>
+    </div>
+  )
+}
 
 function RankSelect({
   value,
@@ -488,26 +679,32 @@ function RankSelect({
       ].join(' ')}
     >
       <option value="">— Non classé</option>
-      {PLAYER_RANKS.slice().reverse().map((r) => (
-        <option key={r} value={r}>{RANK_LABEL[r]}</option>
+      {PLAYER_RANKS.slice().reverse().map((rank) => (
+        <option key={rank} value={rank}>{RANK_LABEL[rank]}</option>
       ))}
     </select>
   )
 }
 
-// ─── Add player form ──────────────────────────────────────────────────────────
-
-function AddPlayerForm({ onDone }: { onDone: () => void }) {
-  const [name,    setName]    = useState('')
-  const [rank,    setRank]    = useState<string>('')
-  const [error,   setError]   = useState<string | null>(null)
+function AddPlayerForm({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void
+  onCreated: (player: PlayerApi) => void
+}) {
+  const [name, setName] = useState('')
+  const [rank, setRank] = useState<string>('')
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
+
     setLoading(true)
     setError(null)
+
     try {
       const res = await fetch('/api/players', {
         method: 'POST',
@@ -517,11 +714,18 @@ function AddPlayerForm({ onDone }: { onDone: () => void }) {
           currentRank: rank || undefined,
         }),
       })
+
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data?.error?.message ?? 'Erreur lors de la création')
+        throw new Error((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la creation')
       }
-      onDone()
+
+      const player = (data as { data?: PlayerApi }).data
+      if (!player) {
+        throw new Error('Reponse invalide du serveur')
+      }
+
+      onCreated(player)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
     } finally {
@@ -549,8 +753,8 @@ function AddPlayerForm({ onDone }: { onDone: () => void }) {
           className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
         >
           <option value="">— Non classé</option>
-          {PLAYER_RANKS.slice().reverse().map((r) => (
-            <option key={r} value={r}>{RANK_LABEL[r]}</option>
+          {PLAYER_RANKS.slice().reverse().map((playerRank) => (
+            <option key={playerRank} value={playerRank}>{RANK_LABEL[playerRank]}</option>
           ))}
         </select>
       </div>
@@ -564,7 +768,7 @@ function AddPlayerForm({ onDone }: { onDone: () => void }) {
         </button>
         <button
           type="button"
-          onClick={onDone}
+          onClick={onCancel}
           className="px-4 py-2 text-sm border border-[var(--color-border)] text-[var(--color-text-muted)] rounded-lg hover:bg-[var(--color-surface-raised)] transition-colors"
         >
           Annuler

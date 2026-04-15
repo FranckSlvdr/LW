@@ -53,10 +53,8 @@ export async function POST(request: Request) {
     }).catch(() => {/* non-blocking */})
 
     const cookieHeader = await buildSessionCookie(user)
-    const isSecure     = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
-
     const response = ok({ name: user.name, role: user.role })
-    response.headers.set('Set-Cookie', cookieHeader + (isSecure ? '; Secure' : ''))
+    response.headers.set('Set-Cookie', cookieHeader)
     return response
   } catch (err) {
     return fail(err)

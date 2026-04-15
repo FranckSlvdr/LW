@@ -1,4 +1,5 @@
 import 'server-only'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import { computeRatings } from '@/server/engines/ratingEngine'
 import {
   loadActiveRatingRules,
@@ -81,6 +82,9 @@ export async function triggerRatingRun(
     await bulkUpsertPlayerRatings(run.id, computed)
     await setRatingRunStatus(run.id, 'completed', computed.length)
     await activateRatingRun(run.id, weekId)
+    try {
+      revalidateTag(`rating-${weekId}`, { expire: 0 })
+    } catch {}
 
     // ── Build response ────────────────────────────────────────────────────────
     const playerMap = new Map(players.map((p) => [p.id, p.name]))
@@ -115,7 +119,17 @@ export async function triggerRatingRun(
 export async function getActiveRatingForWeek(
   weekId: number,
 ): Promise<PlayerRating[] | null> {
-  const run = await findActiveRunForWeek(weekId)
-  if (!run) return null
-  return findPlayerRatingsByRun(run.id)
+  return getActiveRatingForWeekCached(weekId)()
+}
+
+function getActiveRatingForWeekCached(weekId: number) {
+  return unstable_cache(
+    async () => {
+      const run = await findActiveRunForWeek(weekId)
+      if (!run) return null
+      return findPlayerRatingsByRun(run.id)
+    },
+    ['active-rating', String(weekId)],
+    { revalidate: 120, tags: [`rating-${weekId}`] },
+  )
 }

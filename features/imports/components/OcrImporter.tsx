@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { OcrValidationTable } from './OcrValidationTable'
 import { useI18n } from '@/lib/i18n/client'
@@ -26,9 +25,6 @@ export function OcrImporter({ weeks }: OcrImporterProps) {
   const [error, setError]         = useState<string | null>(null)
   const [importMsg, setImportMsg] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
-
-  const router                = useRouter()
-  const [, startTransition]   = useTransition()
 
   async function handleParse() {
     if (!text.trim()) return
@@ -69,7 +65,6 @@ export function OcrImporter({ weeks }: OcrImporterProps) {
         .replace('{count}', String(count))
         .replace('{s}', count > 1 ? 's' : ''))
       setStep('done')
-      startTransition(() => router.refresh())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
     } finally {
@@ -201,8 +196,6 @@ export function OcrImporter({ weeks }: OcrImporterProps) {
 
             <OcrValidationTable
               result={result}
-              weekId={Number(weekId)}
-              dayOfWeek={dayOfWeek}
               onConfirm={handleConfirm}
               confirming={confirming}
             />

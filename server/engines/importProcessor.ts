@@ -32,6 +32,9 @@ export interface ProcessedPlayer {
   alias?: string
   currentRank?: string | null
   isActive?: boolean
+  generalLevel?: number | null
+  professionKey?: string | null
+  professionLevel?: number | null
 }
 
 export interface ProcessedScore {
@@ -111,6 +114,15 @@ export function processPlayerImport(
     // Normalize current_rank: blank = null (unclassified)
     const currentRank = parsed.data.current_rank?.trim().toUpperCase() || null
 
+    const generalLevel = parsed.data.general_level !== undefined
+      ? Number(parsed.data.general_level)
+      : null
+
+    const professionKey   = parsed.data.profession_key ?? null
+    const professionLevel = parsed.data.profession_level !== undefined
+      ? Number(parsed.data.profession_level)
+      : null
+
     valid.push({
       rowNumber,
       raw,
@@ -119,6 +131,9 @@ export function processPlayerImport(
         normalizedName,
         currentRank,
         isActive,
+        generalLevel,
+        professionKey,
+        professionLevel,
       },
     })
   }

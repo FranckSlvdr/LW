@@ -2,18 +2,16 @@ import { Suspense } from 'react'
 import { TopBar } from '@/components/layout/TopBar'
 import { KpiCards } from '@/features/dashboard/components/KpiCards'
 import { TopFlopPanel } from '@/features/dashboard/components/TopFlopPanel'
-import { ScoreHeatmap } from '@/features/dashboard/components/ScoreHeatmap'
 import { InsightsPanel } from '@/features/dashboard/components/InsightsPanel'
-import { ImportStatus } from '@/features/dashboard/components/ImportStatus'
-import { RankingTable } from '@/features/dashboard/components/RankingTable'
-import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton'
+import { LevelDistributionPanel } from '@/features/dashboard/components/LevelDistributionPanel'
+import type { LevelBucket } from '@/features/dashboard/components/LevelDistributionPanel'
+import { SkeletonCard } from '@/components/ui/Skeleton'
+import { ExportButton } from '@/components/ui/ExportButton'
 import { getDashboardData } from '@/server/services/kpiService'
 import { getAllWeeks } from '@/server/services/weekService'
-import { getRecentImports } from '@/server/services/importService'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import { interpolate } from '@/lib/i18n/utils'
 import type { Dictionary } from '@/lib/i18n/types'
-import type { WeekApi } from '@/types/api'
 
 interface DashboardPageProps {
   searchParams: Promise<{ weekId?: string }>
@@ -23,21 +21,15 @@ interface DashboardPageProps {
 
 async function DashboardContent({
   weekId,
-  weeks,
-  locale,
   dict,
 }: {
   weekId: number
-  weeks: WeekApi[]
-  locale: string
   dict: Dictionary
 }) {
   const d = dict.dashboard
 
-  const [{ summary, allKpis, insights }, recentImports] = await Promise.all([
-    getDashboardData(weekId),
-    getRecentImports(5),
-  ])
+  const { summary, allKpis, insights, levelBuckets: snapshotBuckets } = await getDashboardData(weekId)
+  const levelBuckets: LevelBucket[] = snapshotBuckets
 
   if (allKpis.length === 0) {
     return (
@@ -50,9 +42,29 @@ async function DashboardContent({
     )
   }
 
+  const exportRows = allKpis.map((kpi) => {
+    const byDay = Object.fromEntries(kpi.dailyScores.map((ds) => [`Jour ${ds.dayOfWeek}`, ds.score]))
+    return {
+      'Rang':           kpi.rank,
+      'Joueur':         kpi.playerName,
+      'Alias':          kpi.playerAlias ?? '',
+      'Score total':    kpi.totalScore,
+      'Score brut':     kpi.rawTotalScore,
+      'Jours joués':    kpi.daysPlayed,
+      'Participation %': Math.round(kpi.participationRate * 100),
+      'Moyenne/jour':   Math.round(kpi.dailyAverage),
+      'Jours éco':      kpi.ecoDays,
+      ...byDay,
+    }
+  })
+
   return (
     <main className="flex-1 overflow-y-auto">
-      <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+      <div className="max-w-[1200px] mx-auto px-6 py-6 space-y-6">
+
+        <div className="flex justify-end">
+          <ExportButton rows={exportRows} filename={summary.weekLabel} sheetName="Scores VS" />
+        </div>
 
         <section>
           <KpiCards
@@ -62,25 +74,17 @@ async function DashboardContent({
           />
         </section>
 
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <InsightsPanel insights={insights} dict={dict.insights} />
+          <LevelDistributionPanel buckets={levelBuckets} />
+        </section>
+
         <section>
           <TopFlopPanel
             topPlayers={summary.topPlayers}
             flopPlayers={summary.flopPlayers}
             dict={dict.topFlop}
           />
-        </section>
-
-        <section>
-          <ScoreHeatmap kpis={allKpis} dict={dict.heatmap} />
-        </section>
-
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <InsightsPanel insights={insights} dict={dict.insights} />
-          <ImportStatus imports={recentImports} dict={dict.imports} locale={locale} />
-        </section>
-
-        <section>
-          <RankingTable kpis={allKpis} />
         </section>
 
       </div>
@@ -93,27 +97,17 @@ async function DashboardContent({
 function DashboardContentSkeleton() {
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+      <div className="max-w-[1200px] mx-auto px-6 py-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SkeletonCard lines={6} />
-          <SkeletonCard lines={6} />
-        </div>
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-3">
-          <Skeleton className="h-4 w-40" />
-          <div className="space-y-2 pt-2">
-            {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-8 w-full rounded-lg" />)}
-          </div>
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={4} />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SkeletonCard lines={5} />
-          <SkeletonCard lines={5} />
-        </div>
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-3">
-          <Skeleton className="h-4 w-36" />
-          {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
+          <SkeletonCard lines={6} />
+          <SkeletonCard lines={6} />
         </div>
       </div>
     </div>
@@ -146,8 +140,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <Suspense fallback={<DashboardContentSkeleton />}>
         <DashboardContent
           weekId={validWeekId}
-          weeks={weeks}
-          locale={locale}
           dict={dict}
         />
       </Suspense>

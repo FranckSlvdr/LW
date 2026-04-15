@@ -1,6 +1,7 @@
 import { ok, created, fail } from '@/lib/apiResponse'
 import { requireAuth } from '@/server/security/authGuard'
 import { getVsDaysForWeek, setVsDayEco } from '@/server/services/vsDayService'
+import { upsertVsDaySchema } from '@/server/validators/vsDayValidator'
 import { ValidationError } from '@/lib/errors'
 
 /** GET /api/vs-days?weekId=X — fetch all eco day flags for a week */
@@ -23,8 +24,8 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     await requireAuth('scores:edit')
-    const body = await request.json()
-    const day = await setVsDayEco(body)
+    const input = upsertVsDaySchema.parse(await request.json())
+    const day = await setVsDayEco(input)
     return created(day)
   } catch (err) {
     return fail(err)

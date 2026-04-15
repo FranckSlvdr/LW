@@ -1,6 +1,6 @@
 import { ok, created, fail } from '@/lib/apiResponse'
 import { requireAuth } from '@/server/security/authGuard'
-import { listUsers, findUserById } from '@/server/repositories/userRepository'
+import { listUsers } from '@/server/repositories/userRepository'
 import { inviteUser } from '@/server/services/userService'
 import { z } from 'zod'
 import type { UserRole } from '@/types/domain'

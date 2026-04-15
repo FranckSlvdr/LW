@@ -47,12 +47,13 @@ export type UserRole = 'super_admin' | 'admin' | 'manager' | 'viewer'
 export type Permission =
   // Read access
   | 'dashboard:view'
-  | 'ranking:view'
   | 'audit:view'
   | 'admin:view'
   // Import operations
   | 'players:import'
   | 'scores:import'
+  // Week management
+  | 'weeks:manage'          // create, update, lock weeks
   // Edit operations
   | 'players:manage'       // create, update, deactivate
   | 'scores:edit'          // manual score entry or correction

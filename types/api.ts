@@ -191,7 +191,7 @@ export interface CreateScoreInput {
   score: number
 }
 
-export interface UpsertScoreInput extends CreateScoreInput {}
+export type UpsertScoreInput = CreateScoreInput
 
 // ─── Events (API shapes) ────────────────────────────────────────────────────
 
@@ -390,6 +390,35 @@ export interface OcrConfirmInput {
   weekId: number
   dayOfWeek: number
   rows: OcrConfirmRowInput[]
+}
+
+// ─── Analytics (API shapes) ─────────────────────────────────────────────────
+
+/**
+ * Stored in week_kpi_snapshots.payload — locale-agnostic subset of DashboardData.
+ * The insights field is intentionally absent; it's regenerated from allKpis
+ * on each read so locale switching always produces correct messages.
+ */
+export interface DashboardSnapshot {
+  summary: WeekKpiSummary
+  allKpis: PlayerKpi[]
+  /** Previous week KPIs — needed to generate rank-trend insights. Null for first week. */
+  prevKpis: PlayerKpi[] | null
+  /** playerId → alliance rank tier ('R1'..'R5' | null) at snapshot time */
+  playerRanks: Record<number, string | null>
+  /** Player count per generalLevel — pre-computed to avoid extra getAllPlayers() on dashboard */
+  levelBuckets: Array<{ level: number; count: number }>
+}
+
+/** Aggregated VS-score stats for one alliance rank tier, for a given week. */
+export interface WeekRankStatsApi {
+  currentRank: string   // 'R5' | 'R4' | 'R3' | 'R2' | 'R1' | 'unranked'
+  memberCount: number   // total players in this tier
+  activeCount: number   // players with daysPlayed > 0
+  totalScore: number
+  avgScore: number      // totalScore / activeCount (0 if no active)
+  avgParticipation: number  // 0–1
+  avgDaysPlayed: number
 }
 
 // ─── Weeks (API shapes) ─────────────────────────────────────────────────────

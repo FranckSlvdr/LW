@@ -1,6 +1,5 @@
 import 'server-only'
 import postgres from 'postgres'
-import '@/lib/env' // validates required env vars at module load
 
 /**
  * PostgreSQL client — lazy singleton.
@@ -11,7 +10,6 @@ import '@/lib/env' // validates required env vars at module load
  */
 
 declare global {
-  // eslint-disable-next-line no-var
   var _pgClient: ReturnType<typeof postgres> | undefined
 }
 
@@ -94,12 +92,14 @@ function createClient(): ReturnType<typeof postgres> {
     port,
     database,
     ssl,
-    // Serverless-safe pool size: each function instance holds at most 3 connections.
-    // On Vercel, multiple instances can run concurrently — keep this low to avoid
-    // exhausting the DB connection limit (Supabase free tier: 100 max).
-    max: process.env.VERCEL ? 3 : 10,
-    idle_timeout: 20,
-    connect_timeout: 30,
+    // Serverless: 1 connection per instance — Supavisor handles pooling server-side.
+    // Multiple Vercel instances × N connections each can exhaust Supabase limits fast.
+    max: process.env.VERCEL ? 1 : 10,
+    // On Vercel, keep idle connections alive for the function lifetime (~15min max).
+    // Short idle_timeout (20s) was causing reconnects mid-request on warm instances.
+    idle_timeout: process.env.VERCEL ? 60 : 300,
+    // Tight connect timeout to fail fast and surface DB issues early.
+    connect_timeout: process.env.VERCEL ? 8 : 10,
     // Transaction pooler (Supabase Supavisor port 6543) does not support prepared statements.
     prepare: !process.env.VERCEL,
     // Supabase free tier applies a session-level statement_timeout that fires

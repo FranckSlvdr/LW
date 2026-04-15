@@ -10,8 +10,13 @@ export function LanguageSwitcher() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  function switchTo(next: string) {
-    document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000; SameSite=Lax`
+  async function switchTo(next: string) {
+    const response = await fetch('/api/locale', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locale: next }),
+    })
+    if (!response.ok) return
     startTransition(() => router.refresh())
   }
 

@@ -44,7 +44,7 @@ const securityHeaders = [
       "default-src 'self'",
       // Next.js App Router requires unsafe-inline for hydration scripts.
       // Dev only: unsafe-eval is required by React (call stack reconstruction) and Turbopack HMR.
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+      `script-src 'self' https://va.vercel-scripts.com 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
       // Tailwind v4 + CSS custom properties require unsafe-inline
       "style-src 'self' 'unsafe-inline'",
       // next/font serves fonts locally after build-time download
@@ -64,6 +64,9 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  experimental: {
+    instantNavigationDevToolsToggle: isDev,
+  },
   async headers() {
     return [
       {

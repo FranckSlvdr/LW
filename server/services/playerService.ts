@@ -8,6 +8,7 @@ import {
   deactivatePlayer,
   deletePlayer,
 } from '@/server/repositories/playerRepository'
+// Note: findPlayerById is still used by getPlayerById and deleteExistingPlayer
 import { createPlayerSchema, updatePlayerSchema } from '@/server/validators/playerValidator'
 import { NotFoundError } from '@/lib/errors'
 import type { PlayerApi } from '@/types/api'
@@ -36,7 +37,7 @@ export function toPlayerApi(p: Player): PlayerApi {
 
 // Active players change only via import or manual management.
 // Cache for 3 min, invalidated on any mutation. Only the active-only
-// list is cached; getAllPlayers(false) (management page) stays fresh.
+// list is cached; the full management list uses a shorter cache.
 const getAllPlayersActiveCached = unstable_cache(
   async () => {
     const players = await findAllPlayers(true)
@@ -46,10 +47,18 @@ const getAllPlayersActiveCached = unstable_cache(
   { revalidate: 180, tags: ['players'] },
 )
 
+const getAllPlayersFullCached = unstable_cache(
+  async () => {
+    const players = await findAllPlayers(false)
+    return players.map(toPlayerApi)
+  },
+  ['players-full'],
+  { revalidate: 30, tags: ['players'] },
+)
+
 export async function getAllPlayers(activeOnly = true): Promise<PlayerApi[]> {
   if (activeOnly) return getAllPlayersActiveCached()
-  const players = await findAllPlayers(false)
-  return players.map(toPlayerApi)
+  return getAllPlayersFullCached()
 }
 
 /** Call after any mutation that changes the active player list. */
@@ -89,6 +98,7 @@ export async function updateExistingPlayer(id: number, raw: unknown): Promise<Pl
 
   const player = await updatePlayer(id, input)
   if (!player) throw new NotFoundError('Player', id)
+
   invalidatePlayersCache()
   return toPlayerApi(player)
 }
@@ -99,8 +109,38 @@ export async function deactivateExistingPlayer(id: number): Promise<void> {
   invalidatePlayersCache()
 }
 
-export async function deleteExistingPlayer(id: number): Promise<void> {
-  const ok = await deletePlayer(id)
-  if (!ok) throw new NotFoundError('Player', id)
-  invalidatePlayersCache()
+export async function deleteExistingPlayer(
+  id: number,
+): Promise<
+  | { mode: 'deleted' }
+  | { mode: 'deactivated'; player: PlayerApi }
+> {
+  try {
+    const ok = await deletePlayer(id)
+    if (!ok) {
+      invalidatePlayersCache()
+      return { mode: 'deleted' }
+    }
+    invalidatePlayersCache()
+    return { mode: 'deleted' }
+  } catch (err) {
+    if ((err as { code?: string } | null)?.code !== '23503') {
+      throw err
+    }
+
+    const ok = await deactivatePlayer(id)
+    if (!ok) {
+      invalidatePlayersCache()
+      return { mode: 'deleted' }
+    }
+
+    const player = await findPlayerById(id)
+    if (!player) {
+      invalidatePlayersCache()
+      return { mode: 'deleted' }
+    }
+
+    invalidatePlayersCache()
+    return { mode: 'deactivated', player: toPlayerApi(player) }
+  }
 }

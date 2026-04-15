@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { formatScore } from '@/lib/utils'
 import type { PlayerApi, ContributionApi } from '@/types/api'
@@ -10,9 +9,17 @@ interface ContributionFormProps {
   weekId: number
   players: PlayerApi[]
   existing: ContributionApi[]
+  disabled?: boolean
+  disabledReason?: string
 }
 
-export function ContributionForm({ weekId, players, existing }: ContributionFormProps) {
+export function ContributionForm({
+  weekId,
+  players,
+  existing,
+  disabled = false,
+  disabledReason,
+}: ContributionFormProps) {
   const existingMap = new Map(existing.map((c) => [c.playerId, c]))
   const [entries, setEntries] = useState<Array<{ playerId: number; amount: string; note: string }>>(
     players.map((p) => ({
@@ -23,8 +30,6 @@ export function ContributionForm({ weekId, players, existing }: ContributionForm
   )
   const [status, setStatus]   = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [msg, setMsg]         = useState<string | null>(null)
-  const router                = useRouter()
-  const [, startTransition]   = useTransition()
 
   function update(playerId: number, field: 'amount' | 'note', value: string) {
     setEntries((prev) =>
@@ -38,8 +43,8 @@ export function ContributionForm({ weekId, players, existing }: ContributionForm
     const toSave = entries.filter((e) => e.amount.trim() !== '' && !isNaN(Number(e.amount)))
     try {
       const results = await Promise.allSettled(
-        toSave.map((e) =>
-          fetch('/api/contributions', {
+        toSave.map(async (e) => {
+          const res = await fetch('/api/contributions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -48,13 +53,24 @@ export function ContributionForm({ weekId, players, existing }: ContributionForm
               amount: Number(e.amount),
               note:   e.note.trim() || undefined,
             }),
-          }),
-        ),
+          })
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            throw new Error(data?.error?.message ?? `Erreur ${res.status}`)
+          }
+          return res
+        }),
       )
-      const ok = results.filter((r) => r.status === 'fulfilled').length
-      setStatus('done')
-      setMsg(`✅ ${ok} contribution${ok > 1 ? 's' : ''} sauvegardée${ok > 1 ? 's' : ''}`)
-      startTransition(() => router.refresh())
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length
+      const failed    = results.filter((r) => r.status === 'rejected')
+      if (failed.length > 0) {
+        const firstErr = (failed[0] as PromiseRejectedResult).reason
+        setStatus('error')
+        setMsg(`⚠️ ${succeeded} sauvegardée${succeeded > 1 ? 's' : ''}, ${failed.length} erreur${failed.length > 1 ? 's' : ''} — ${firstErr instanceof Error ? firstErr.message : 'Erreur inconnue'}`)
+      } else {
+        setStatus('done')
+        setMsg(`✅ ${succeeded} contribution${succeeded > 1 ? 's' : ''} sauvegardée${succeeded > 1 ? 's' : ''}`)
+      }
     } catch {
       setStatus('error')
       setMsg('Erreur lors de la sauvegarde')
@@ -88,6 +104,7 @@ export function ContributionForm({ weekId, players, existing }: ContributionForm
                 <input
                   type="number"
                   min={0}
+                  disabled={disabled}
                   value={entry.amount}
                   onChange={(e) => update(entry.playerId, 'amount', e.target.value)}
                   placeholder="0"
@@ -95,6 +112,7 @@ export function ContributionForm({ weekId, players, existing }: ContributionForm
                 />
                 <input
                   type="text"
+                  disabled={disabled}
                   value={entry.note}
                   onChange={(e) => update(entry.playerId, 'note', e.target.value)}
                   placeholder="Note (optionnel)"
@@ -106,14 +124,25 @@ export function ContributionForm({ weekId, players, existing }: ContributionForm
         })}
       </div>
 
-      <div className="mt-4 flex items-center gap-4">
+      <div className="mt-4 flex items-center gap-4 flex-wrap">
         <button
           onClick={handleSave}
-          disabled={status === 'loading'}
+          disabled={status === 'loading' || disabled}
           className="px-5 py-2 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-40"
         >
           {status === 'loading' ? 'Sauvegarde…' : 'Sauvegarder'}
         </button>
+        {disabled && disabledReason && (
+          <span className="text-sm text-[var(--color-text-muted)]">{disabledReason}</span>
+        )}
+        {status === 'error' && (
+          <button
+            onClick={() => { setStatus('idle'); setMsg(null) }}
+            className="px-4 py-2 text-sm border border-[var(--color-border)] text-[var(--color-text-muted)] rounded-lg hover:border-[var(--color-accent)] transition-colors"
+          >
+            Réessayer
+          </button>
+        )}
         {msg && (
           <span className={`text-sm ${status === 'error' ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}`}>
             {msg}

@@ -69,6 +69,35 @@ export async function upsertProfession(data: {
   return toProfession(rows[0])
 }
 
+/**
+ * Bulk upsert professions from CSV import.
+ * Skips entries where professionKey or professionLevel is null.
+ */
+export async function bulkUpsertProfessions(
+  entries: Array<{ playerId: number; professionKey: string | null; professionLevel: number | null }>,
+): Promise<number> {
+  const valid = entries.filter(
+    (e): e is { playerId: number; professionKey: string; professionLevel: number } =>
+      e.professionKey !== null && e.professionLevel !== null,
+  )
+  if (valid.length === 0) return 0
+
+  const rows = valid.map((e) => ({
+    player_id:      e.playerId,
+    profession_key: e.professionKey,
+    level:          e.professionLevel,
+  }))
+
+  const result = await db`
+    INSERT INTO player_professions ${db(rows, 'player_id', 'profession_key', 'level')}
+    ON CONFLICT (player_id) DO UPDATE SET
+      profession_key = EXCLUDED.profession_key,
+      level          = EXCLUDED.level,
+      updated_at     = NOW()
+  `
+  return result.count
+}
+
 export async function deleteProfession(playerId: number): Promise<boolean> {
   const result = await db`
     DELETE FROM player_professions WHERE player_id = ${playerId}

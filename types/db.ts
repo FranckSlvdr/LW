@@ -151,3 +151,43 @@ export interface AuditLogRow {
   performed_by: string | null
   created_at: Date
 }
+
+// ─── Analytics snapshot rows (migration 011) ──────────────────────────────────
+
+export interface WeekKpiSnapshotRow {
+  week_id: number
+  payload: unknown      // DashboardSnapshot (JSONB — parsed as object by postgres.js)
+  stale: boolean
+  computed_at: Date
+}
+
+export interface WeekMemberStatsRow {
+  week_id: number
+  player_id: number
+  player_name: string
+  player_alias: string | null
+  current_rank: string | null
+  rank_position: number
+  previous_rank: number | null
+  rank_trend: string | null
+  total_score: string   // BIGINT → string from postgres client
+  raw_total_score: string
+  days_played: number
+  participation_rate: string  // NUMERIC → string
+  daily_average: string
+  eco_days: number
+  daily_scores: unknown // DailyScoreApi[] (JSONB)
+  computed_at: Date
+}
+
+export interface WeekRankStatsRow {
+  week_id: number
+  current_rank: string
+  member_count: number
+  active_count: number
+  total_score: string   // BIGINT → string
+  avg_score: string
+  avg_participation: string  // NUMERIC → string
+  avg_days_played: string
+  computed_at: Date
+}

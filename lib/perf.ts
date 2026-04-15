@@ -15,5 +15,4 @@ export function perf(label: string): () => void {
     console.log(`[perf] ${label} ${(performance.now() - start).toFixed(0)}ms`)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-function
 const noop = () => {}

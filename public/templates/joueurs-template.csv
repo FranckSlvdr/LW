@@ -1,6 +1,6 @@
-name,current_rank,is_active
-Jean Dupont,R4,TRUE
-Marie Martin,R3,TRUE
-Pierre Bernard,R1,FALSE
-Sophie Leclerc,R3,TRUE
-Alex Nouveau,,TRUE
+name,current_rank,is_active,general_level,profession_key,profession_level
+Jean Dupont,R4,TRUE,45,fighter,8
+Marie Martin,R3,TRUE,38,farmer,6
+Pierre Bernard,R1,FALSE,12,,
+Sophie Leclerc,R3,TRUE,52,builder,9
+Alex Nouveau,,TRUE,,,

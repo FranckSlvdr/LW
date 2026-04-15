@@ -16,9 +16,10 @@ interface EcoDayBarProps {
   weekId:   number
   vsDays:   VsDayApi[]
   canEdit:  boolean
+  disabledReason?: string
 }
 
-export function EcoDayBar({ weekId, vsDays, canEdit }: EcoDayBarProps) {
+export function EcoDayBar({ weekId, vsDays, canEdit, disabledReason }: EcoDayBarProps) {
   // Build local eco map for optimistic updates: dayOfWeek → isEco
   const initial = new Map(vsDays.map((d) => [d.dayOfWeek, d.isEco]))
   const [ecoMap, setEcoMap] = useState<Map<number, boolean>>(initial)
@@ -67,6 +68,9 @@ export function EcoDayBar({ weekId, vsDays, canEdit }: EcoDayBarProps) {
             Scores plafonnés à {formatScore(ECO_SCORE_CAP)} les jours éco
             {!canEdit && ' · lecture seule'}
           </p>
+          {!canEdit && disabledReason && (
+            <p className="text-[0.7rem] text-[var(--color-text-muted)] mt-0.5">{disabledReason}</p>
+          )}
         </div>
         {hasAnyEco && (
           <span className="text-[0.65rem] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/20">

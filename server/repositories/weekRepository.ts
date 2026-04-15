@@ -71,9 +71,9 @@ export async function createWeek(input: CreateWeekInput): Promise<Week> {
   return toWeek(rows[0])
 }
 
-export async function lockWeek(id: number): Promise<boolean> {
+export async function lockWeek(id: number, isLocked: boolean): Promise<boolean> {
   const rows = await db<{ id: number }[]>`
-    UPDATE weeks SET is_locked = TRUE WHERE id = ${id} RETURNING id
+    UPDATE weeks SET is_locked = ${isLocked} WHERE id = ${id} RETURNING id
   `
   return rows.length > 0
 }
