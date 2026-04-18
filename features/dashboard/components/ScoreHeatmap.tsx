@@ -48,6 +48,7 @@ function getEcoDaySet(kpis: PlayerKpi[]): Set<DayOfWeek> {
 export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatmapProps) {
   const router                              = useRouter()
   const [, startTransition]                 = useTransition()
+  const refreshTimerRef                     = useRef<ReturnType<typeof setTimeout> | null>(null)
   // key `${playerId}:${day}` → overridden score after an inline save
   const [localScores, setLocalScores]       = useState<Map<string, number>>(new Map())
   // which cell is being edited
@@ -107,8 +108,11 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
       }
       // Mise à jour locale optimiste
       setLocalScores((prev) => new Map(prev).set(key, parsed))
-      // Recharge les KPIs en arrière-plan (totaux, rangs…)
-      startTransition(() => router.refresh())
+      // Recharge les KPIs en arrière-plan — debounced pour éviter un after() par cellule sauvegardée
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        startTransition(() => router.refresh())
+      }, 3000)
     } catch {
       setErrorKey(key)
     } finally {

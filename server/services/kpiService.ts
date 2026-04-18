@@ -193,6 +193,11 @@ export async function computeDashboardCore(weekId: number): Promise<DashboardSna
   return { summary, allKpis, prevKpis, playerRanks, levelBuckets }
 }
 
+// ─── Background recompute guard ──────────────────────────────────────────────
+// Prevents multiple concurrent after() recomputes for the same weekId on the
+// same Lambda instance (Fluid Compute reuses instances across requests).
+const recomputingWeeks = new Set<number>()
+
 // ─── Cached read (snapshot + Next.js cache) ───────────────────────────────────
 
 /**
@@ -226,16 +231,23 @@ async function computeOrReadSnapshot(weekId: number): Promise<DashboardSnapshot>
     if (storedSnapshot) {
       logger.warn('Serving stale dashboard snapshot on Vercel', { weekId })
       // Kick off a background recompute so the NEXT request gets fresh data.
-      // after() runs after the streaming response is complete — no impact on TTFB.
-      after(async () => {
-        try {
-          const fresh = await computeDashboardCore(weekId)
-          await saveSnapshot(weekId, fresh)
-          try { revalidateTag(`week-kpi-${weekId}`, 'max') } catch {}
-        } catch (err) {
-          logger.error('Background snapshot recompute failed', { weekId, err: String(err) })
-        }
-      })
+      // Guard: skip if a recompute for this weekId is already in progress on
+      // this Lambda instance — prevents thundering herd when multiple concurrent
+      // requests all see the stale snapshot and each try to recompute.
+      if (!recomputingWeeks.has(weekId)) {
+        recomputingWeeks.add(weekId)
+        after(async () => {
+          try {
+            const fresh = await computeDashboardCore(weekId)
+            await saveSnapshot(weekId, fresh)
+            try { revalidateTag(`week-kpi-${weekId}`, 'max') } catch {}
+          } catch (err) {
+            logger.error('Background snapshot recompute failed', { weekId, err: String(err) })
+          } finally {
+            recomputingWeeks.delete(weekId)
+          }
+        })
+      }
       return storedSnapshot
     }
   }
