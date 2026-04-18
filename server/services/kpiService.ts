@@ -1,5 +1,6 @@
 import 'server-only'
-import { unstable_cache } from 'next/cache'
+import { unstable_cache, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { findAllPlayers } from '@/server/repositories/playerRepository'
 import { findScoresByWeek } from '@/server/repositories/scoreRepository'
@@ -224,6 +225,17 @@ async function computeOrReadSnapshot(weekId: number): Promise<DashboardSnapshot>
     const storedSnapshot = await findStoredSnapshot(weekId)
     if (storedSnapshot) {
       logger.warn('Serving stale dashboard snapshot on Vercel', { weekId })
+      // Kick off a background recompute so the NEXT request gets fresh data.
+      // after() runs after the streaming response is complete — no impact on TTFB.
+      after(async () => {
+        try {
+          const fresh = await computeDashboardCore(weekId)
+          await saveSnapshot(weekId, fresh)
+          try { revalidateTag(`week-kpi-${weekId}`, 'max') } catch {}
+        } catch (err) {
+          logger.error('Background snapshot recompute failed', { weekId, err: String(err) })
+        }
+      })
       return storedSnapshot
     }
   }

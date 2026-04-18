@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import { ok, created, fail } from '@/lib/apiResponse'
 import { BadRequestError } from '@/lib/errors'
 import {
-  HEAVY_API_RATE_LIMIT,
+  SCORE_EDIT_RATE_LIMIT,
   buildRateLimitIdentifier,
   rateLimit,
   rateLimitResponse,
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const limit = await rateLimit(
       'scores:bulk-upsert',
       buildRateLimitIdentifier(request, actor.id),
-      HEAVY_API_RATE_LIMIT,
+      SCORE_EDIT_RATE_LIMIT,
     )
     if (!limit.ok) {
       return rateLimitResponse(limit, 'Trop de modifications de scores en peu de temps.')

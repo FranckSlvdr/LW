@@ -205,3 +205,9 @@ export const HEAVY_API_RATE_LIMIT: RateLimitOptions = {
   max: 5,
   windowMs: 60 * 1000,
 }
+
+/** Inline score edits from the heatmap — one request per cell, so allow more. */
+export const SCORE_EDIT_RATE_LIMIT: RateLimitOptions = {
+  max: 60,
+  windowMs: 60 * 1000,
+}
