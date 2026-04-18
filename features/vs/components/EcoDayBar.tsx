@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { APP_CONFIG } from '@/config/app.config'
 import type { VsDayApi } from '@/types/api'
 import { formatScore } from '@/lib/utils'
 
@@ -9,8 +10,6 @@ const DAY_LABELS: Record<number, string> = {
   1: 'Lundi', 2: 'Mardi', 3: 'Mercredi',
   4: 'Jeudi', 5: 'Vendredi', 6: 'Samedi',
 }
-
-const ECO_SCORE_CAP = 7_200_000
 
 interface EcoDayBarProps {
   weekId:   number
@@ -65,7 +64,7 @@ export function EcoDayBar({ weekId, vsDays, canEdit, disabledReason }: EcoDayBar
             Jours éco
           </p>
           <p className="text-[0.7rem] text-[var(--color-text-muted)] mt-0.5">
-            Scores plafonnés à {formatScore(ECO_SCORE_CAP)} les jours éco
+            Scores plafonnés à {formatScore(APP_CONFIG.ecoScoreCap)} les jours éco
             {!canEdit && ' · lecture seule'}
           </p>
           {!canEdit && disabledReason && (

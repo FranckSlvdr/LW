@@ -8,8 +8,8 @@ import {
   deactivatePlayer,
   deletePlayer,
 } from '@/server/repositories/playerRepository'
-// Note: findPlayerById is still used by getPlayerById and deleteExistingPlayer
 import { createPlayerSchema, updatePlayerSchema } from '@/server/validators/playerValidator'
+import { invalidateAllKpis } from '@/server/services/analyticsService'
 import { NotFoundError } from '@/lib/errors'
 import type { PlayerApi } from '@/types/api'
 import type { Player } from '@/types/domain'
@@ -83,6 +83,7 @@ export async function createNewPlayer(raw: unknown): Promise<PlayerApi> {
   const input = createPlayerSchema.parse(raw)
   const player = await createPlayer(input)
   invalidatePlayersCache()
+  invalidateAllKpis()
   return toPlayerApi(player)
 }
 
@@ -100,6 +101,8 @@ export async function updateExistingPlayer(id: number, raw: unknown): Promise<Pl
   if (!player) throw new NotFoundError('Player', id)
 
   invalidatePlayersCache()
+  // Player name, rank or active status may be embedded in KPI snapshots
+  invalidateAllKpis()
   return toPlayerApi(player)
 }
 
@@ -107,6 +110,7 @@ export async function deactivateExistingPlayer(id: number): Promise<void> {
   const ok = await deactivatePlayer(id)
   if (!ok) throw new NotFoundError('Player', id)
   invalidatePlayersCache()
+  invalidateAllKpis()
 }
 
 export async function deleteExistingPlayer(
@@ -116,31 +120,23 @@ export async function deleteExistingPlayer(
   | { mode: 'deactivated'; player: PlayerApi }
 > {
   try {
-    const ok = await deletePlayer(id)
-    if (!ok) {
-      invalidatePlayersCache()
+    try {
+      await deletePlayer(id)
       return { mode: 'deleted' }
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code !== '23503') throw err
+
+      // FK constraint — player has referenced rows; deactivate instead
+      const deactivated = await deactivatePlayer(id)
+      if (!deactivated) return { mode: 'deleted' }
+
+      const player = await findPlayerById(id)
+      if (!player) return { mode: 'deleted' }
+
+      return { mode: 'deactivated', player: toPlayerApi(player) }
     }
+  } finally {
     invalidatePlayersCache()
-    return { mode: 'deleted' }
-  } catch (err) {
-    if ((err as { code?: string } | null)?.code !== '23503') {
-      throw err
-    }
-
-    const ok = await deactivatePlayer(id)
-    if (!ok) {
-      invalidatePlayersCache()
-      return { mode: 'deleted' }
-    }
-
-    const player = await findPlayerById(id)
-    if (!player) {
-      invalidatePlayersCache()
-      return { mode: 'deleted' }
-    }
-
-    invalidatePlayersCache()
-    return { mode: 'deactivated', player: toPlayerApi(player) }
+    invalidateAllKpis()
   }
 }

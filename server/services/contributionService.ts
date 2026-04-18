@@ -47,16 +47,21 @@ function getContributionsForWeekCached(weekId: number) {
   return unstable_cache(
     async () => {
       const rows = await findContributionsByWeek(weekId)
-      return rows.map((r, idx) => ({
-        id:          r.id,
-        playerId:    r.playerId,
-        playerName:  r.playerName,
-        playerAlias: r.playerAlias,
-        weekId:      r.weekId,
-        amount:      r.amount,
-        note:        r.note,
-        rank:        idx + 1,
-      }))
+      // Assign RANK-style ranks: ties share the same rank (e.g. 1, 2, 2, 4)
+      let rank = 1
+      return rows.map((r, idx) => {
+        if (idx > 0 && rows[idx - 1].amount !== r.amount) rank = idx + 1
+        return {
+          id:          r.id,
+          playerId:    r.playerId,
+          playerName:  r.playerName,
+          playerAlias: r.playerAlias,
+          weekId:      r.weekId,
+          amount:      r.amount,
+          note:        r.note,
+          rank,
+        }
+      })
     },
     ['contributions', String(weekId)],
     { revalidate: 60, tags: [`contributions-${weekId}`] },

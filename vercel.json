@@ -1,4 +1,11 @@
 {
   "buildCommand": "npm run build",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "regions": ["cdg1"],
+  "crons": [
+    {
+      "path": "/api/cron/refresh-analytics",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }

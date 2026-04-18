@@ -21,6 +21,9 @@ export const APP_CONFIG = {
 
   /** Top N / Flop N players shown on dashboard */
   dashboardTopFlopCount: 5,
+
+  /** VS eco-day score cap (game rule) */
+  ecoScoreCap: 7_200_000,
 } as const
 
 export type AppConfig = typeof APP_CONFIG

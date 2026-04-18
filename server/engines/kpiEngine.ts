@@ -19,11 +19,12 @@
  * V1 note: players with score = 0 on all days are included with rank at bottom.
  */
 
+import { APP_CONFIG } from '@/config/app.config'
 import type { Player, DailyScore, DayOfWeek } from '@/types/domain'
 import type { PlayerKpi, DailyScoreApi } from '@/types/api'
 
 /** Score cap applied to all player scores on eco days */
-export const ECO_SCORE_CAP = 7_200_000
+export const ECO_SCORE_CAP = APP_CONFIG.ecoScoreCap
 
 // ─── Public interface ─────────────────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ function buildPlayerKpi(
 function rankByTotal(kpis: PlayerKpi[]): PlayerKpi[] {
   const sorted = [...kpis].sort((a, b) => {
     if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore
-    return a.playerName.localeCompare(b.playerName) // deterministic tie-break
+    return a.playerId - b.playerId // stable tie-break independent of locale
   })
 
   let rank = 1

@@ -3,6 +3,10 @@ import { ok, fail } from '@/lib/apiResponse'
 import { refreshStaleSnapshots } from '@/server/services/analyticsService'
 import { logger } from '@/lib/logger'
 
+// Allow up to 60s — refreshing many stale weeks runs sequentially to avoid
+// saturating the DB connection pool, so it can take longer than the default 10s.
+export const maxDuration = 60
+
 /**
  * GET /api/cron/refresh-analytics
  *

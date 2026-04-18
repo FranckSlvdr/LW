@@ -51,8 +51,8 @@ const securityHeaders = [
       "font-src 'self'",
       // Images: self + data URIs (no external image sources currently)
       "img-src 'self' data: blob:",
-      // All fetch/XHR must go to same origin
-      "connect-src 'self'",
+      // All fetch/XHR: same origin + Vercel Speed Insights telemetry
+      "connect-src 'self' https://vitals.vercel-insights.com",
       // No workers, plugins, or frames
       "worker-src 'none'",
       "object-src 'none'",
@@ -64,9 +64,9 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
-  experimental: {
-    instantNavigationDevToolsToggle: isDev,
-  },
+  // Remove "X-Powered-By: Next.js" header — no reason to advertise the stack
+  poweredByHeader: false,
+
   async headers() {
     return [
       {
