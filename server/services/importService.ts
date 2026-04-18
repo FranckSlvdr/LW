@@ -1,6 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
-import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
+import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { processPlayerImport, processScoreImport } from '@/server/engines/importProcessor'
 import {
   createImport,
@@ -23,7 +23,7 @@ import type { Import } from '@/types/domain'
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
 export async function getRecentImports(limit = 5): Promise<Import[]> {
-  const imports = USE_NEXT_DATA_CACHE
+  const imports = IS_VERCEL_RUNTIME || USE_NEXT_DATA_CACHE
     ? await getRecentImportsCached(limit)()
     : await readRecentImports(limit)
   return imports.map((imp) => ({ ...imp, createdAt: new Date(imp.createdAt) }))
@@ -125,7 +125,7 @@ export async function importPlayersFromCsv(
       invalidateAllKpis() // player roster change affects all week snapshots
     }
     try {
-      revalidateTag('imports', { expire: 0 })
+      revalidateTag('imports', 'max')
     } catch {}
 
     logger.info('Player import completed', {
@@ -239,7 +239,7 @@ export async function importScoresFromCsv(
 
     if (imported > 0) invalidateWeekKpi(weekId)
     try {
-      revalidateTag('imports', { expire: 0 })
+      revalidateTag('imports', 'max')
     } catch {}
 
     return {

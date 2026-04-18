@@ -17,6 +17,7 @@ export function NavLink({ href, icon, label }: NavLinkProps) {
   return (
     <Link
       href={href}
+      prefetch={false}
       className={[
         'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
         isActive

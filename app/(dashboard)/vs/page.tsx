@@ -16,6 +16,7 @@ import { getLocale, getDict } from '@/lib/i18n/server'
 import { perf } from '@/lib/perf'
 import type { Dictionary } from '@/lib/i18n/types'
 import type { WeekApi } from '@/types/api'
+export const maxDuration = 60
 
 interface PageProps {
   searchParams: Promise<{ weekId?: string }>

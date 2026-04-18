@@ -1,6 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
-import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
+import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import {
   findAllPlayers,
   findPlayerById,
@@ -58,6 +58,11 @@ const getAllPlayersFullCached = unstable_cache(
 )
 
 export async function getAllPlayers(activeOnly = true): Promise<PlayerApi[]> {
+  if (IS_VERCEL_RUNTIME) {
+    if (activeOnly) return getAllPlayersActiveCached()
+    return getAllPlayersFullCached()
+  }
+
   if (!USE_NEXT_DATA_CACHE) {
     const players = await findAllPlayers(activeOnly)
     return players.map(toPlayerApi)
@@ -70,7 +75,7 @@ export async function getAllPlayers(activeOnly = true): Promise<PlayerApi[]> {
 /** Call after any mutation that changes the active player list. */
 export function invalidatePlayersCache(): void {
   try {
-    revalidateTag('players', { expire: 0 })
+    revalidateTag('players', 'max')
   } catch {
     // revalidateTag can throw when called outside a full Next.js render context
     // (e.g. from some Route Handler setups). The cache will expire via TTL.

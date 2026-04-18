@@ -1,3 +1,5 @@
+export const maxDuration = 60
+
 import { ok, created, fail } from '@/lib/apiResponse'
 import { BadRequestError } from '@/lib/errors'
 import {

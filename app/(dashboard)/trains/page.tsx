@@ -1,14 +1,14 @@
 import { Suspense } from 'react'
 import { TopBar } from '@/components/layout/TopBar'
 import { TrainSelector } from '@/features/trains/components/TrainSelector'
-import { TrainHistory } from '@/features/trains/components/TrainHistory'
+import { TrainHistoryLoader } from '@/features/trains/components/TrainHistoryLoader'
 import { TrainSettingsPanel } from '@/features/trains/components/TrainSettingsPanel'
-import { ExportButton } from '@/components/ui/ExportButton'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { getTrainSettings, getTrainRunsForWeek, getRecentTrainHistory } from '@/server/services/trainService'
+import { getTrainSettings, getTrainRunsForWeek } from '@/server/services/trainService'
 import { getAllWeeks } from '@/server/services/weekService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
+export const maxDuration = 60
 
 interface PageProps {
   searchParams: Promise<{ weekId?: string }>
@@ -25,10 +25,9 @@ async function TrainsContent({
   canTrigger: boolean
   canConfigure: boolean
 }) {
-  const [settings, runsForWeek, history] = await Promise.all([
+  const [settings, runsForWeek] = await Promise.all([
     getTrainSettings(),
     weekId ? getTrainRunsForWeek(weekId) : Promise.resolve([]),
-    getRecentTrainHistory(14),
   ])
 
   return (
@@ -52,23 +51,7 @@ async function TrainsContent({
           )}
         </div>
 
-        <div className="flex justify-end">
-          <ExportButton
-            rows={history.flatMap((run) =>
-              run.selections.map((sel) => ({
-                'Semaine':  run.weekLabel,
-                'Jour':     run.trainDayLabel,
-                'Position': sel.position,
-                'Joueur':   sel.playerName,
-                'Alias':    sel.playerAlias ?? '',
-                'Raison':   sel.selectionReason,
-              })),
-            )}
-            filename="trains-historique"
-            sheetName="Trains"
-          />
-        </div>
-        <TrainHistory runs={history} />
+        <TrainHistoryLoader limit={14} />
 
       </div>
     </main>

@@ -7,6 +7,7 @@ import { getLocale, getDict } from '@/lib/i18n/server'
 import { getAllPlayers } from '@/server/services/playerService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import type { WeekApi } from '@/types/api'
+export const maxDuration = 60
 
 async function PlayersContent({ canManage }: { canManage: boolean }) {
   const allPlayers = await getAllPlayers(false)

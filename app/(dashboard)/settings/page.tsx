@@ -7,6 +7,7 @@ import { getTrainSettings } from '@/server/services/trainService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import type { WeekApi } from '@/types/api'
+export const maxDuration = 60
 
 async function SettingsContent({ canConfigure, canManageWeeks }: {
   canConfigure: boolean

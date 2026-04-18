@@ -1,6 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
-import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
+import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { computeRatings } from '@/server/engines/ratingEngine'
 import {
   loadActiveRatingRules,
@@ -84,7 +84,7 @@ export async function triggerRatingRun(
     await setRatingRunStatus(run.id, 'completed', computed.length)
     await activateRatingRun(run.id, weekId)
     try {
-      revalidateTag(`rating-${weekId}`, { expire: 0 })
+      revalidateTag(`rating-${weekId}`, 'max')
     } catch {}
 
     // ── Build response ────────────────────────────────────────────────────────
@@ -120,6 +120,7 @@ export async function triggerRatingRun(
 export async function getActiveRatingForWeek(
   weekId: number,
 ): Promise<PlayerRating[] | null> {
+  if (IS_VERCEL_RUNTIME) return getActiveRatingForWeekCached(weekId)()
   if (!USE_NEXT_DATA_CACHE) return readActiveRatingForWeek(weekId)
   return getActiveRatingForWeekCached(weekId)()
 }

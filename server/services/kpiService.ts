@@ -205,9 +205,20 @@ export async function computeDashboardCore(weekId: number): Promise<DashboardSna
  *  3. Full computation (7 DB queries + pure engines)    → ~100–300ms
  */
 async function computeOrReadSnapshot(weekId: number): Promise<DashboardSnapshot> {
+  const startedAt = Date.now()
+
   // Layer 2: DB snapshot
   const snapshot = await findSnapshot(weekId)
-  if (snapshot) return snapshot
+  if (snapshot) {
+    if (IS_VERCEL_RUNTIME) {
+      logger.info('Dashboard snapshot resolved from database', {
+        weekId,
+        source: 'fresh',
+        ms: Date.now() - startedAt,
+      })
+    }
+    return snapshot
+  }
 
   if (IS_VERCEL_RUNTIME) {
     const storedSnapshot = await findStoredSnapshot(weekId)
@@ -252,6 +263,10 @@ function getDashboardCoreForWeek(weekId: number) {
 }
 
 async function readDashboardCoreForWeek(weekId: number): Promise<DashboardSnapshot> {
+  if (IS_VERCEL_RUNTIME) {
+    return getDashboardCoreForWeek(weekId)()
+  }
+
   if (!USE_NEXT_DATA_CACHE) {
     return computeOrReadSnapshot(weekId)
   }
@@ -269,6 +284,7 @@ async function readDashboardCoreForWeek(weekId: number): Promise<DashboardSnapsh
  * regenerated from the cached KPIs every time (~0.5 ms pure computation).
  */
 export async function getDashboardData(weekId: number): Promise<DashboardData> {
+  const startedAt = Date.now()
   // Fetch cached core (1 of the 3 cache layers above)
   const snapshot = await readDashboardCoreForWeek(weekId)
 
@@ -288,13 +304,23 @@ export async function getDashboardData(weekId: number): Promise<DashboardData> {
   // Compute rank-tier distribution from cached data — pure, no DB
   const rankStats = computeRankDistribution(snapshot.allKpis, snapshot.playerRanks)
 
-  return {
+  const data = {
     summary:      snapshot.summary,
     allKpis:      snapshot.allKpis,
     insights,
     rankStats,
     levelBuckets: snapshot.levelBuckets ?? [],
   }
+
+  if (IS_VERCEL_RUNTIME) {
+    logger.info('Dashboard data ready', {
+      weekId,
+      ms: Date.now() - startedAt,
+      players: data.allKpis.length,
+    })
+  }
+
+  return data
 }
 
 /**

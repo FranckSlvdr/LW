@@ -1,6 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
-import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
+import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import {
   loadTrainSettings, updateTrainSettings,
   findTrainRunsByWeek, findRecentTrainRuns,
@@ -28,6 +28,7 @@ const DAY_LABELS: Record<number, string> = {
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export async function getTrainSettings(): Promise<TrainSettingsApi> {
+  if (IS_VERCEL_RUNTIME) return getTrainSettingsCached()
   if (!USE_NEXT_DATA_CACHE) return readTrainSettings()
   return getTrainSettingsCached()
 }
@@ -42,7 +43,7 @@ export async function patchTrainSettings(input: UpdateTrainSettingsInput): Promi
     vsTopDays:              input.vsTopDays,
   })
   try {
-    revalidateTag('train-settings', { expire: 0 })
+    revalidateTag('train-settings', 'max')
   } catch {}
   return toSettingsApi(s)
 }
@@ -61,6 +62,7 @@ function toSettingsApi(s: TrainSettings): TrainSettingsApi {
 // ─── Runs ─────────────────────────────────────────────────────────────────────
 
 export async function getTrainRunsForWeek(weekId: number): Promise<TrainRunApi[]> {
+  if (IS_VERCEL_RUNTIME) return getTrainRunsForWeekCached(weekId)()
   if (!USE_NEXT_DATA_CACHE) return readTrainRunsForWeek(weekId)
   return getTrainRunsForWeekCached(weekId)()
 }
@@ -102,6 +104,7 @@ function getTrainRunsForWeekCached(weekId: number) {
 }
 
 export async function getRecentTrainHistory(limit = 20): Promise<TrainRunApi[]> {
+  if (IS_VERCEL_RUNTIME) return getRecentTrainHistoryCached(limit)()
   if (!USE_NEXT_DATA_CACHE) return readRecentTrainHistory(limit)
   return getRecentTrainHistoryCached(limit)()
 }
@@ -283,9 +286,9 @@ async function buildTrainContext(weekId: number): Promise<TrainContext> {
 
 function invalidateTrainCache(weekId: number) {
   try {
-    revalidateTag('train-runs', { expire: 0 })
-    revalidateTag(`train-runs-${weekId}`, { expire: 0 })
-    revalidateTag('train-history', { expire: 0 })
+    revalidateTag('train-runs', 'max')
+    revalidateTag(`train-runs-${weekId}`, 'max')
+    revalidateTag('train-history', 'max')
   } catch {}
 }
 

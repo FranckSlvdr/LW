@@ -1,6 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
-import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
+import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { findContributionsByWeek, upsertContributionWithRank, deleteContribution } from '@/server/repositories/contributionRepository'
 import { findPlayerById } from '@/server/repositories/playerRepository'
 import { assertWeekOpenForManualEntry } from '@/server/services/weekService'
@@ -8,6 +8,7 @@ import { NotFoundError, ValidationError } from '@/lib/errors'
 import type { ContributionApi, UpsertContributionInput } from '@/types/api'
 
 export async function getContributionsForWeek(weekId: number): Promise<ContributionApi[]> {
+  if (IS_VERCEL_RUNTIME) return getContributionsForWeekCached(weekId)()
   if (!USE_NEXT_DATA_CACHE) return readContributionsForWeek(weekId)
   return getContributionsForWeekCached(weekId)()
 }
@@ -23,7 +24,7 @@ export async function upsertPlayerContribution(input: UpsertContributionInput): 
   // Upsert + rank computed in one SQL query — no separate re-fetch of all rows
   const saved = await upsertContributionWithRank(input.playerId, input.weekId, input.amount, input.note)
   try {
-    revalidateTag(`contributions-${input.weekId}`, { expire: 0 })
+    revalidateTag(`contributions-${input.weekId}`, 'max')
   } catch {}
 
   return {
@@ -41,7 +42,7 @@ export async function upsertPlayerContribution(input: UpsertContributionInput): 
 export async function removeContribution(playerId: number, weekId: number): Promise<void> {
   await deleteContribution(playerId, weekId)
   try {
-    revalidateTag(`contributions-${weekId}`, { expire: 0 })
+    revalidateTag(`contributions-${weekId}`, 'max')
   } catch {}
 }
 

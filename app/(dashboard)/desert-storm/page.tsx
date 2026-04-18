@@ -8,6 +8,7 @@ import { getAllPlayers } from '@/server/services/playerService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import type { Dictionary } from '@/lib/i18n/types'
+export const maxDuration = 60
 
 interface PageProps {
   searchParams: Promise<{ weekId?: string }>

@@ -1,6 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
-import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
+import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import {
   findAllWeeks,
   findWeekById,
@@ -40,6 +40,10 @@ const getAllWeeksCached = unstable_cache(
 )
 
 export async function getAllWeeks(): Promise<WeekApi[]> {
+  if (IS_VERCEL_RUNTIME) {
+    return getAllWeeksCached()
+  }
+
   if (!USE_NEXT_DATA_CACHE) {
     const weeks = await findAllWeeks()
     return weeks.map(toWeekApi)
@@ -96,7 +100,7 @@ export async function createNewWeek(raw: unknown): Promise<WeekApi> {
 
   const week = await createWeek(input)
   try {
-    revalidateTag('weeks', { expire: 0 })
+    revalidateTag('weeks', 'max')
   } catch {
     // revalidateTag can throw outside a full Next.js render context
   }
@@ -108,7 +112,7 @@ export async function lockExistingWeek(id: number, isLocked: boolean): Promise<W
   if (!week) throw new NotFoundError('Week', id)
   await lockWeek(id, isLocked)
   try {
-    revalidateTag('weeks', { expire: 0 })
+    revalidateTag('weeks', 'max')
   } catch {
     // no-op outside render context
   }

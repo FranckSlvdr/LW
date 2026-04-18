@@ -29,7 +29,7 @@ import type { WeekRankStatsApi } from '@/types/api'
  */
 export function invalidateWeekKpi(weekId: number): void {
   try {
-    revalidateTag(`week-kpi-${weekId}`, { expire: 0 } as Parameters<typeof revalidateTag>[1])
+    revalidateTag(`week-kpi-${weekId}`, 'max')
   } catch {
     // revalidateTag can throw outside full request context; TTL handles expiry
   }
@@ -52,7 +52,7 @@ export function invalidateWeekKpi(weekId: number): void {
  */
 export function invalidateAllKpis(): void {
   try {
-    revalidateTag('dashboard', { expire: 0 } as Parameters<typeof revalidateTag>[1])
+    revalidateTag('dashboard', 'max')
   } catch {
     // Same as above
   }
@@ -91,7 +91,7 @@ export async function refreshWeekAnalytics(weekId: number): Promise<void> {
 
   // Bust the Next.js Data Cache so the next request picks up the new snapshot
   try {
-    revalidateTag(`week-kpi-${weekId}`, { expire: 0 } as Parameters<typeof revalidateTag>[1])
+    revalidateTag(`week-kpi-${weekId}`, 'max')
   } catch {
     // Fine — cache will serve the new snapshot on next cold hit
   }

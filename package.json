@@ -9,6 +9,7 @@
     "start": "next start",
     "preview": "next build && next start",
     "lint": "eslint",
+    "test": "node --import tsx --test --test-isolation=none tests/lib/rateLimit.test.ts tests/features/playerTableUtils.test.ts tests/security/authGuard.test.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx server/db/seeds/001_demo.ts",
     "db:create-admin": "tsx scripts/create-admin.ts"

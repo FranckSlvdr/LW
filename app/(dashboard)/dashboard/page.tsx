@@ -12,6 +12,7 @@ import { getAllWeeks } from '@/server/services/weekService'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import { interpolate } from '@/lib/i18n/utils'
 import type { Dictionary } from '@/lib/i18n/types'
+export const maxDuration = 60
 
 interface DashboardPageProps {
   searchParams: Promise<{ weekId?: string }>

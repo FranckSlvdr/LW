@@ -1,6 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
-import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
+import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { findDsScoresByWeek, upsertDsScoreWithRank, deleteDsScore } from '@/server/repositories/desertStormRepository'
 import {
   findDsRegistrationsByWeek,
@@ -14,6 +14,7 @@ import { NotFoundError, ValidationError } from '@/lib/errors'
 import type { DesertStormScoreApi, UpsertDesertStormInput, DsRegistrationApi, UpsertDsRegistrationInput } from '@/types/api'
 
 export async function getDsScoresForWeek(weekId: number): Promise<DesertStormScoreApi[]> {
+  if (IS_VERCEL_RUNTIME) return getDsScoresForWeekCached(weekId)()
   if (!USE_NEXT_DATA_CACHE) return readDsScoresForWeek(weekId)
   return getDsScoresForWeekCached(weekId)()
 }
@@ -29,7 +30,7 @@ export async function upsertDsScoreForPlayer(input: UpsertDesertStormInput): Pro
   // Upsert + rank computed in one SQL query — no separate re-fetch of all rows
   const saved = await upsertDsScoreWithRank(input.playerId, input.weekId, input.score)
   try {
-    revalidateTag(`desert-storm-${input.weekId}`, { expire: 0 })
+    revalidateTag(`desert-storm-${input.weekId}`, 'max')
   } catch {}
 
   return {
@@ -46,13 +47,14 @@ export async function upsertDsScoreForPlayer(input: UpsertDesertStormInput): Pro
 export async function removeDsScore(playerId: number, weekId: number): Promise<void> {
   await deleteDsScore(playerId, weekId)
   try {
-    revalidateTag(`desert-storm-${weekId}`, { expire: 0 })
+    revalidateTag(`desert-storm-${weekId}`, 'max')
   } catch {}
 }
 
 // ─── Registration service ─────────────────────────────────────────────────────
 
 export async function getDsRegistrationsForWeek(weekId: number): Promise<DsRegistrationApi[]> {
+  if (IS_VERCEL_RUNTIME) return getDsRegistrationsForWeekCached(weekId)()
   if (!USE_NEXT_DATA_CACHE) return findDsRegistrationsByWeek(weekId)
   return getDsRegistrationsForWeekCached(weekId)()
 }
@@ -75,14 +77,14 @@ export async function saveDsRegistration(input: UpsertDsRegistrationInput): Prom
     top3Rank:  input.top3Rank,
   })
 
-  try { revalidateTag(`ds-reg-${input.weekId}`, { expire: 0 }) } catch {}
+  try { revalidateTag(`ds-reg-${input.weekId}`, 'max') } catch {}
 
   return saved
 }
 
 export async function removeDsRegistration(playerId: number, weekId: number): Promise<void> {
   await deleteDsRegistration(playerId, weekId)
-  try { revalidateTag(`ds-reg-${weekId}`, { expire: 0 }) } catch {}
+  try { revalidateTag(`ds-reg-${weekId}`, 'max') } catch {}
 }
 
 function getDsRegistrationsForWeekCached(weekId: number) {

@@ -23,13 +23,19 @@ export async function GET(request: Request) {
     await requireAuth('dashboard:view')
     const { searchParams } = new URL(request.url)
     const weekId = searchParams.get('weekId')
+    const limitParam = searchParams.get('limit')
 
     if (weekId) {
       const runs = await getTrainRunsForWeek(Number(weekId))
       return ok(runs)
     }
 
-    const history = await getRecentTrainHistory(30)
+    const parsedLimit = limitParam ? Number(limitParam) : 30
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(Math.trunc(parsedLimit), 1), 100)
+      : 30
+
+    const history = await getRecentTrainHistory(limit)
     return ok(history)
   } catch (err) {
     return fail(err)
