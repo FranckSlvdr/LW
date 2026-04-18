@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
 import { ok, fail } from '@/lib/apiResponse'
 import { refreshStaleSnapshots } from '@/server/services/analyticsService'
+import { getCronSecret } from '@/server/config/cron'
 import { logger } from '@/lib/logger'
 
 // Allow up to 60s — refreshing many stale weeks runs sequentially to avoid
 // saturating the DB connection pool, so it can take longer than the default 10s.
 export const maxDuration = 60
+const CRON_SECRET = getCronSecret()
 
 /**
  * GET /api/cron/refresh-analytics
@@ -20,12 +22,9 @@ export const maxDuration = 60
  */
 export async function GET(request: NextRequest) {
   try {
-    const cronSecret = process.env.CRON_SECRET
-    if (cronSecret) {
-      const authHeader = request.headers.get('authorization')
-      if (authHeader !== `Bearer ${cronSecret}`) {
-        return new Response('Unauthorized', { status: 401 })
-      }
+    const authHeader = request.headers.get('authorization')
+    if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+      return new Response('Unauthorized', { status: 401 })
     }
 
     logger.info('Cron: refresh-analytics triggered')

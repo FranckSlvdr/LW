@@ -115,6 +115,31 @@ function getClient(): ReturnType<typeof postgres> {
   return (globalThis._pgClient ??= createClient())
 }
 
+// ─── AggregateError unwrapper ────────────────────────────────────────────────
+//
+// postgres.js throws AggregateError on connection failures. The `.message` is
+// empty — actual errors live in `.errors[]`. Next.js Server Components then
+// surfaces "no message was provided", making the root cause invisible.
+// Re-throw as a plain Error so the real message reaches the error overlay.
+
+function unwrapAggregateError(err: unknown): never {
+  if (err instanceof AggregateError) {
+    const first = err.errors?.[0]
+    const msg = first instanceof Error
+      ? first.message
+      : first != null ? String(first) : 'unknown database error'
+    const wrapped = new Error(`DB: ${msg}`)
+    wrapped.cause = err
+    throw wrapped
+  }
+  throw err
+}
+
+function wrapPromise(p: unknown): unknown {
+  if (p instanceof Promise) return p.catch(unwrapAggregateError)
+  return p
+}
+
 // ─── Export lazy proxy ────────────────────────────────────────────────────────
 
 export const db = new Proxy(
@@ -122,12 +147,17 @@ export const db = new Proxy(
   {
     apply(_target, thisArg, args) {
       const client = getClient()
-      return (client as unknown as (...a: unknown[]) => unknown).apply(thisArg, args)
+      return wrapPromise(
+        (client as unknown as (...a: unknown[]) => unknown).apply(thisArg, args),
+      )
     },
     get(_target, prop) {
       const client = getClient()
       const value = (client as unknown as Record<string | symbol, unknown>)[prop]
-      return typeof value === 'function' ? value.bind(client) : value
+      if (typeof value !== 'function') return value
+      return function (this: unknown, ...args: unknown[]) {
+        return wrapPromise((value as (...a: unknown[]) => unknown).apply(client, args))
+      }
     },
   },
 )

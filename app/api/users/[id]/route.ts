@@ -1,25 +1,47 @@
-import { ok, fail } from '@/lib/apiResponse'
-import { requireAuth } from '@/server/security/authGuard'
-import { deactivateUser, activateUser, changeUserRole } from '@/server/services/userService'
 import { z } from 'zod'
+import { ok, fail } from '@/lib/apiResponse'
+import {
+  API_RATE_LIMIT,
+  buildRateLimitIdentifier,
+  getClientIp,
+  rateLimit,
+  rateLimitResponse,
+} from '@/lib/rateLimit'
+import { requireAuth } from '@/server/security/authGuard'
+import {
+  activateUser,
+  changeUserRole,
+  deactivateUser,
+} from '@/server/services/userService'
 import type { UserRole } from '@/types/domain'
 
-interface Params { params: Promise<{ id: string }> }
+const patchSchema = z
+  .object({
+    isActive: z.boolean().optional(),
+    role: z.enum(['super_admin', 'admin', 'manager', 'viewer']).optional(),
+  })
+  .refine((data) => data.isActive !== undefined || data.role !== undefined, {
+    message: 'At least one of isActive or role is required',
+  })
 
-const patchSchema = z.object({
-  isActive: z.boolean().optional(),
-  role:     z.enum(['super_admin', 'admin', 'manager', 'viewer']).optional(),
-}).refine((d) => d.isActive !== undefined || d.role !== undefined, {
-  message: 'At least one of isActive or role is required',
-})
-
-export async function PATCH(request: Request, { params }: Params) {
+export async function PATCH(
+  request: Request,
+  context: RouteContext<'/api/users/[id]'>,
+) {
   try {
-    const actor  = await requireAuth('users:manage')
-    const { id } = await params
-    const body   = patchSchema.parse(await request.json())
-    const ip     = (request.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim()
-    const opts   = { ipAddress: ip }
+    const actor = await requireAuth('users:manage')
+    const limit = await rateLimit(
+      'users:update',
+      buildRateLimitIdentifier(request, actor.id),
+      API_RATE_LIMIT,
+    )
+    if (!limit.ok) {
+      return rateLimitResponse(limit)
+    }
+
+    const { id } = await context.params
+    const body = patchSchema.parse(await request.json())
+    const opts = { ipAddress: getClientIp(request) }
 
     let result
     if (body.isActive === false) {
@@ -27,7 +49,6 @@ export async function PATCH(request: Request, { params }: Params) {
     } else if (body.isActive === true) {
       result = await activateUser(id, actor, opts)
     } else if (body.role !== undefined) {
-      // Role promotion requires a higher permission check inside changeUserRole
       result = await changeUserRole(id, body.role as UserRole, actor, opts)
     }
 

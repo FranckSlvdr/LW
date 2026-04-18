@@ -257,9 +257,9 @@ export interface Dictionary {
   // ── Desert Storm page ────────────────────────────────────────────────────────
   desertStorm: {
     pageTitle: string
-    statRecorded: string
-    statMissing: string
-    statBest: string
+    statTeamA: string
+    statTeamB: string
+    statAbsent: string
   }
 
   // ── OCR importer ─────────────────────────────────────────────────────────────

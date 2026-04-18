@@ -1,11 +1,8 @@
 import { Suspense } from 'react'
 import { TopBar } from '@/components/layout/TopBar'
-import { DesertStormTable } from '@/features/desert-storm/components/DesertStormTable'
-import { DesertStormForm } from '@/features/desert-storm/components/DesertStormForm'
-import { ExportButton } from '@/components/ui/ExportButton'
+import { DesertStormManageForm } from '@/features/desert-storm/components/DesertStormManageForm'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { getDsScoresForWeek } from '@/server/services/desertStormService'
-import { getTrainSettings } from '@/server/services/trainService'
+import { getDsRegistrationsForWeek } from '@/server/services/desertStormService'
 import { getAllWeeks } from '@/server/services/weekService'
 import { getAllPlayers } from '@/server/services/playerService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
@@ -19,54 +16,39 @@ interface PageProps {
 async function DesertStormContent({
   weekId,
   canEdit,
-  manualEditDisabledReason,
   dict,
 }: {
   weekId: number
   canEdit: boolean
-  manualEditDisabledReason: string | null
   dict: Dictionary
 }) {
   const t = dict.desertStorm
-  const [players, scores, trainSettings] = await Promise.all([
+  const [players, registrations] = await Promise.all([
     getAllPlayers(true),
-    weekId ? getDsScoresForWeek(weekId) : Promise.resolve([]),
-    getTrainSettings(),
+    weekId ? getDsRegistrationsForWeek(weekId) : Promise.resolve([]),
   ])
-  const missing = Math.max(0, players.length - scores.length)
+
+  const teamA     = registrations.filter((r) => r.team === 'A')
+  const teamB     = registrations.filter((r) => r.team === 'B')
+  const absents   = registrations.filter((r) => !r.present).length
 
   return (
     <main className="flex-1 overflow-y-auto">
       <div className="max-w-[1200px] mx-auto px-6 py-6 space-y-6">
 
-        <div className="flex items-start justify-between gap-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 stagger flex-1">
-            <StatPill label={t.statRecorded} value={String(scores.length)} />
-            <StatPill label={t.statMissing}  value={String(missing)} />
-            <StatPill label={t.statBest}     value={scores[0] ? scores[0].score.toLocaleString() : '—'} />
-          </div>
-          <ExportButton
-            rows={scores.map((s) => ({
-              'Rang':   s.rank,
-              'Joueur': s.playerName,
-              'Alias':  s.playerAlias ?? '',
-              'Score':  s.score,
-            }))}
-            filename={`desert-storm-semaine-${weekId}`}
-            sheetName="Desert Storm"
-          />
+        {/* KPI pills */}
+        <div className="grid grid-cols-3 gap-4 stagger">
+          <StatPill label={t.statTeamA} value={`${teamA.length}`} />
+          <StatPill label={t.statTeamB} value={`${teamB.length}`} />
+          <StatPill label={t.statAbsent} value={`${absents}`} />
         </div>
 
-        {canEdit && (
-          <DesertStormForm
-            weekId={weekId}
-            players={players}
-            existingScores={scores}
-            disabled={manualEditDisabledReason !== null}
-            disabledReason={manualEditDisabledReason ?? undefined}
-          />
-        )}
-        <DesertStormTable scores={scores} includeDsTop2={trainSettings.includeDsTop2} />
+        <DesertStormManageForm
+          weekId={weekId}
+          players={players}
+          registrations={registrations}
+          canEdit={canEdit}
+        />
 
       </div>
     </main>
@@ -77,12 +59,15 @@ function DesertStormSkeleton() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-[1200px] mx-auto px-6 py-6 space-y-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <SkeletonCard lines={1} />
           <SkeletonCard lines={1} />
           <SkeletonCard lines={1} />
         </div>
-        <SkeletonCard lines={12} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <SkeletonCard lines={14} />
+          <SkeletonCard lines={14} />
+        </div>
       </div>
     </div>
   )
@@ -100,13 +85,6 @@ export default async function DesertStormPage({ searchParams }: PageProps) {
 
   const selectedWeekId = weekIdParam ? Number(weekIdParam) : weeks[0]?.id ?? 0
   const validWeekId    = weeks.find((w) => w.id === selectedWeekId)?.id ?? weeks[0]?.id ?? 0
-  const currentWeek    = weeks.find((w) => w.id === validWeekId)
-  const isLatestWeek   = currentWeek ? weeks[0]?.id === currentWeek.id : false
-  const manualEditDisabledReason = currentWeek?.isLocked
-    ? 'Semaine verrouillee : les saisies manuelles sont bloquees.'
-    : !isLatestWeek
-    ? 'Les saisies manuelles sont autorisees uniquement sur la semaine active.'
-    : null
 
   return (
     <>
@@ -115,7 +93,6 @@ export default async function DesertStormPage({ searchParams }: PageProps) {
         <DesertStormContent
           weekId={validWeekId}
           canEdit={canEdit}
-          manualEditDisabledReason={manualEditDisabledReason}
           dict={dict}
         />
       </Suspense>

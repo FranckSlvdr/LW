@@ -1,18 +1,21 @@
 import 'server-only'
+import { getSmtpConfigStatus } from '@/server/config/smtp'
 
 /**
- * Email service — sends transactional emails.
+ * Email service for transactional messages.
  *
  * Transport selection:
- *   - SMTP_HOST set → nodemailer SMTP transport
- *   - Otherwise      → stdout fallback (dev / preview environments)
+ * - `SMTP_HOST` set: use nodemailer SMTP transport
+ * - otherwise: allow a local-dev fallback only
  *
- * Required env vars (when SMTP_HOST is set):
- *   SMTP_HOST, SMTP_PORT (default 587), SMTP_USER, SMTP_PASS
- *   EMAIL_FROM (default 'noreply@lastwar.app')
+ * Required env vars when SMTP is configured:
+ * - `SMTP_HOST`
+ * - `SMTP_PORT` (default `587`)
+ * - `SMTP_USER`
+ * - `SMTP_PASS`
+ * - `EMAIL_FROM` (optional, defaults to `noreply@lastwar.app`)
  */
 
-const FROM    = process.env.EMAIL_FROM   ?? 'Last War Tracker <noreply@lastwar.app>'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 interface MailOptions {
@@ -23,56 +26,78 @@ interface MailOptions {
 }
 
 async function sendMail(opts: MailOptions): Promise<void> {
-  if (process.env.SMTP_HOST) {
-    // Dynamic import so nodemailer isn't bundled in Edge Runtime
+  const smtp = getSmtpConfigStatus()
+
+  if (smtp.partial) {
+    throw new Error(
+      `SMTP configuration is incomplete. Missing: ${smtp.missing.join(', ')}`,
+    )
+  }
+
+  if (smtp.configured) {
+    // Keep nodemailer out of routes that never send email.
     const nodemailer = await import('nodemailer')
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT ?? 587),
-      secure: Number(process.env.SMTP_PORT ?? 587) === 465,
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.port === 465,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: smtp.user,
+        pass: smtp.pass,
       },
     })
-    await transporter.sendMail({ from: FROM, ...opts })
-  } else {
-    // Stdout fallback — useful in dev and preview
-    console.log('[emailService] ─── EMAIL (stdout fallback) ───────────────')
-    console.log(`To:      ${opts.to}`)
-    console.log(`Subject: ${opts.subject}`)
-    console.log(opts.text)
-    console.log('────────────────────────────────────────────────────────────')
+
+    await transporter.sendMail({ from: smtp.from, ...opts })
+    return
   }
+
+  if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+    throw new Error('SMTP is not configured for transactional email delivery.')
+  }
+
+  console.log('[emailService] Email delivery skipped because SMTP is not configured.')
+  console.log(`To: ${opts.to}`)
+  console.log(`Subject: ${opts.subject}`)
 }
 
-// ─── Transactional emails ────────────────────────────────────────────────────
-
-export async function sendInviteEmail(to: string, name: string, rawToken: string): Promise<void> {
+export async function sendInviteEmail(
+  to: string,
+  name: string,
+  rawToken: string,
+): Promise<void> {
   const url = `${APP_URL}/auth/accept-invite?token=${rawToken}`
   await sendMail({
     to,
-    subject: 'Invitation à rejoindre Last War Tracker',
-    text: `Bonjour ${name},\n\nVous avez été invité à rejoindre Last War Tracker.\n\nAccédez à votre compte ici (valable 48h) :\n${url}\n`,
-    html: `
-      <p>Bonjour <strong>${name}</strong>,</p>
-      <p>Vous avez été invité à rejoindre <strong>Last War Tracker</strong>.</p>
-      <p><a href="${url}">Activer mon compte</a> (lien valable 48h)</p>
-      <p style="color:#666;font-size:12px">Si vous n'attendiez pas cet email, ignorez-le.</p>
-    `,
+    subject: 'Invitation a rejoindre Last War Tracker',
+    text:
+      `Bonjour ${name},\n\n` +
+      'Vous avez ete invite a rejoindre Last War Tracker.\n\n' +
+      `Accedez a votre compte ici (valable 48h) :\n${url}\n`,
+    html: [
+      `<p>Bonjour <strong>${name}</strong>,</p>`,
+      '<p>Vous avez ete invite a rejoindre <strong>Last War Tracker</strong>.</p>',
+      `<p><a href="${url}">Activer mon compte</a> (lien valable 48h)</p>`,
+      "<p style=\"color:#666;font-size:12px\">Si vous n'attendiez pas cet email, ignorez-le.</p>",
+    ].join(''),
   })
 }
 
-export async function sendPasswordResetEmail(to: string, rawToken: string): Promise<void> {
+export async function sendPasswordResetEmail(
+  to: string,
+  rawToken: string,
+): Promise<void> {
   const url = `${APP_URL}/auth/reset-password?token=${rawToken}`
   await sendMail({
     to,
-    subject: 'Réinitialisation de votre mot de passe',
-    text: `Une demande de réinitialisation de mot de passe a été reçue.\n\nCliquez ici (valable 1h) :\n${url}\n\nSi vous n'avez pas fait cette demande, ignorez cet email.`,
-    html: `
-      <p>Une demande de réinitialisation de mot de passe a été reçue.</p>
-      <p><a href="${url}">Réinitialiser mon mot de passe</a> (lien valable 1h)</p>
-      <p style="color:#666;font-size:12px">Si vous n'avez pas fait cette demande, ignorez cet email.</p>
-    `,
+    subject: 'Reinitialisation de votre mot de passe',
+    text:
+      'Une demande de reinitialisation de mot de passe a ete recue.\n\n' +
+      `Cliquez ici (valable 1h) :\n${url}\n\n` +
+      "Si vous n'avez pas fait cette demande, ignorez cet email.",
+    html: [
+      '<p>Une demande de reinitialisation de mot de passe a ete recue.</p>',
+      `<p><a href="${url}">Reinitialiser mon mot de passe</a> (lien valable 1h)</p>`,
+      "<p style=\"color:#666;font-size:12px\">Si vous n'avez pas fait cette demande, ignorez cet email.</p>",
+    ].join(''),
   })
 }

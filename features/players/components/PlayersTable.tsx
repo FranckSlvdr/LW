@@ -1,21 +1,23 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import {
+  MAX_PROFESSION_LEVEL,
+  PROFESSION_ICON,
+  summarizePlayers,
+  sortPlayers,
+} from '@/features/players/lib/playerTableUtils'
+import type {
+  FilterLevel,
+  FilterRank,
+  FilterStatus,
+} from '@/features/players/lib/playerTableUtils'
 import { PLAYER_RANKS, RANK_LABEL } from '@/types/domain'
 import type { PlayerApi, ProfessionApi } from '@/types/api'
 import type { PlayerRank } from '@/types/domain'
 
-const PROFESSION_ICON: Record<string, string> = {
-  farmer: '🌾',
-  fighter: '⚔️',
-  builder: '🏗️',
-  researcher: '🔬',
-  explorer: '🗺️',
-}
-
-const MAX_PROFESSION_LEVEL = 10
 
 const RANK_BADGE_VARIANT: Record<PlayerRank, 'danger' | 'warning' | 'success' | 'info' | 'neutral'> = {
   R5: 'danger',
@@ -34,36 +36,22 @@ const RANK_SHORT: Record<PlayerRank, string> = {
 }
 
 const PROFESSION_KEYS = Object.keys(PROFESSION_ICON)
+const EMPTY_MARK = '\u2014'
+const CHECK_MARK = '\u2713'
+const CROSS_MARK = '\u2715'
+const ELLIPSIS = '\u2026'
+const INFO_MARK = '\u24D8'
+const UNKNOWN_PROFESSION_ICON = '\u2753'
 
 interface PlayersTableProps {
   players: PlayerApi[]
   canManage: boolean
 }
 
-type FilterStatus = 'all' | 'active' | 'inactive'
-type FilterRank = 'all' | 'unclassified' | PlayerRank
-type FilterLevel = number | null
-
 interface EditingName { id: number; value: string }
 interface EditingLevel { id: number; value: string }
+interface EditingJoinedAt { id: number; value: string }
 interface EditingProfession { id: number; key: string; level: string }
-
-function comparePlayers(a: PlayerApi, b: PlayerApi): number {
-  const rankA = a.currentRank ?? ''
-  const rankB = b.currentRank ?? ''
-
-  if (rankA !== rankB) {
-    if (!rankA) return 1
-    if (!rankB) return -1
-    return rankB.localeCompare(rankA)
-  }
-
-  return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' })
-}
-
-function sortPlayers(players: PlayerApi[]): PlayerApi[] {
-  return [...players].sort(comparePlayers)
-}
 
 export function PlayersTable({ players, canManage }: PlayersTableProps) {
   const [rows, setRows] = useState(() => sortPlayers(players))
@@ -74,20 +62,10 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
   const [confirmDelId, setConfirmDel] = useState<number | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [editingName, setEditingName] = useState<EditingName | null>(null)
-  const [editingLevel, setEditingLevel] = useState<EditingLevel | null>(null)
+  const [editingName, setEditingName]       = useState<EditingName | null>(null)
+  const [editingLevel, setEditingLevel]     = useState<EditingLevel | null>(null)
+  const [editingJoinedAt, setEditingJoinedAt] = useState<EditingJoinedAt | null>(null)
   const [editingProfession, setEditingProf] = useState<EditingProfession | null>(null)
-
-  const filtered = rows.filter((player) => {
-    const statusOk =
-      filterStatus === 'all' || (filterStatus === 'active' ? player.isActive : !player.isActive)
-    const rankOk =
-      filterRank === 'all' ||
-      (filterRank === 'unclassified' ? !player.currentRank : player.currentRank === filterRank)
-    const levelOk =
-      filterLevel === null || player.generalLevel === filterLevel
-    return statusOk && rankOk && levelOk
-  })
 
   function replacePlayer(nextPlayer: PlayerApi) {
     setRows((current) =>
@@ -223,6 +201,18 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
     await handlePatch(playerId, { generalLevel })
   }
 
+  async function handleSaveJoinedAt(playerId: number) {
+    if (!editingJoinedAt || editingJoinedAt.id !== playerId) return
+
+    const raw = editingJoinedAt.value.trim()
+    setEditingJoinedAt(null)
+
+    const current = rows.find((p) => p.id === playerId)
+    if (raw === (current?.joinedAt ?? '')) return
+
+    await handlePatch(playerId, { joinedAt: raw === '' ? null : raw })
+  }
+
   async function handleSaveProfession(playerId: number) {
     if (!editingProfession || editingProfession.id !== playerId) return
 
@@ -268,34 +258,26 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
     setShowAdd(false)
   }
 
-  const rankCounts = PLAYER_RANKS.reduce<Record<string, number>>((acc, rank) => {
-    acc[rank] = rows.filter((player) => player.isActive && player.currentRank === rank).length
-    return acc
-  }, {})
-
-  const activePlayers = rows.filter((player) => player.isActive)
-  const inactiveCount = rows.length - activePlayers.length
-  const unclassified = rows.filter((player) => player.isActive && !player.currentRank).length
-  const levelCounts = activePlayers.reduce<Record<number, number>>((acc, player) => {
-    if (player.generalLevel == null) return acc
-    acc[player.generalLevel] = (acc[player.generalLevel] ?? 0) + 1
-    return acc
-  }, {})
-  const sortedLevels = Object.entries(levelCounts)
-    .map(([level, count]) => ({ level: Number(level), count }))
-    .sort((a, b) => b.level - a.level)
-  const unfilledLevels = activePlayers.filter((player) => player.generalLevel == null).length
+  const {
+    filtered,
+    activeCount,
+    inactiveCount,
+    unclassifiedCount,
+    rankCounts,
+    sortedLevels,
+    unfilledLevels,
+  } = summarizePlayers(rows, filterStatus, filterRank, filterLevel)
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        <StatPill label="Actifs" value={String(activePlayers.length)} />
+        <StatPill label="Actifs" value={String(activeCount)} />
         <StatPill label="Inactifs" value={String(inactiveCount)} dim />
         {PLAYER_RANKS.slice().reverse().map((rank) => (
           <StatPill key={rank} label={rank} value={String(rankCounts[rank] ?? 0)} />
         ))}
-        {unclassified > 0 && (
-          <StatPill label="Non classés" value={String(unclassified)} dim />
+        {unclassifiedCount > 0 && (
+          <StatPill label="Non class\u00E9s" value={String(unclassifiedCount)} dim />
         )}
       </div>
 
@@ -357,8 +339,8 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
               : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-raised)]',
           ].join(' ')}
         >
-          <p className="text-xs font-bold text-[var(--color-text-primary)]">{unclassified}</p>
-          <p className="text-[0.6rem] text-[var(--color-text-muted)] mt-0.5">Non classé</p>
+          <p className="text-xs font-bold text-[var(--color-text-primary)]">{unclassifiedCount}</p>
+          <p className="text-[0.6rem] text-[var(--color-text-muted)] mt-0.5">Non class\u00E9</p>
         </button>
       </div>
 
@@ -410,7 +392,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
         {deleteError && (
           <div className="mx-5 mb-3 px-4 py-2.5 rounded-lg border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/5 text-sm text-[var(--color-danger)] flex items-center justify-between gap-3">
             <span>{deleteError}</span>
-            <button onClick={() => setDeleteError(null)} className="text-[var(--color-danger)] hover:opacity-70 shrink-0">✕</button>
+            <button onClick={() => setDeleteError(null)} className="text-[var(--color-danger)] hover:opacity-70 shrink-0">{CROSS_MARK}</button>
           </div>
         )}
 
@@ -422,7 +404,8 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                 <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Rang actuel</th>
                 <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Suggestion app</th>
                 <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Profession</th>
-                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Niv. général</th>
+                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Niv. g\u00E9n\u00E9ral</th>
+                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Arriv\u00E9e</th>
                 <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Statut</th>
                 {canManage && <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">Actions</th>}
               </tr>
@@ -472,7 +455,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         {RANK_SHORT[player.currentRank as PlayerRank]}
                       </Badge>
                     ) : (
-                      <span className="text-xs text-[var(--color-text-muted)]">—</span>
+                      <span className="text-xs text-[var(--color-text-muted)]">{EMPTY_MARK}</span>
                     )}
                   </td>
 
@@ -483,11 +466,11 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                           {RANK_SHORT[player.suggestedRank as PlayerRank]}
                         </Badge>
                         {player.rankReason && (
-                          <span className="ml-1 text-[0.6rem] text-[var(--color-text-muted)] cursor-help">ⓘ</span>
+                          <span className="ml-1 text-[0.6rem] text-[var(--color-text-muted)] cursor-help">{INFO_MARK}</span>
                         )}
                       </span>
                     ) : (
-                      <span className="text-xs text-[var(--color-text-muted)]">—</span>
+                      <span className="text-xs text-[var(--color-text-muted)]">{EMPTY_MARK}</span>
                     )}
                   </td>
 
@@ -519,11 +502,11 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         <button
                           onClick={() => void handleSaveProfession(player.id)}
                           className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-white"
-                        >✓</button>
+                        >{CHECK_MARK}</button>
                         <button
                           onClick={() => setEditingProf(null)}
                           className="text-xs px-1.5 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)]"
-                        >✕</button>
+                        >{CROSS_MARK}</button>
                       </span>
                     ) : player.professionKey ? (
                       <span
@@ -532,10 +515,10 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         title={canManage ? 'Cliquer pour modifier' : undefined}
                       >
                         <span className="text-base leading-none">
-                          {PROFESSION_ICON[player.professionKey] ?? '❓'}
+                          {PROFESSION_ICON[player.professionKey] ?? UNKNOWN_PROFESSION_ICON}
                         </span>
                         <span className="text-[0.6rem] text-[var(--color-text-muted)] leading-none">
-                          {player.professionLevel ?? '—'}/{MAX_PROFESSION_LEVEL}
+                          {player.professionLevel ?? EMPTY_MARK}/{MAX_PROFESSION_LEVEL}
                         </span>
                       </span>
                     ) : (
@@ -544,7 +527,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         className={`text-xs ${canManage ? 'cursor-pointer text-[var(--color-accent)] hover:underline' : 'text-[var(--color-text-muted)]'}`}
                         title={canManage ? 'Cliquer pour ajouter' : undefined}
                       >
-                        {canManage ? '+ ajouter' : '—'}
+                        {canManage ? '+ ajouter' : EMPTY_MARK}
                       </span>
                     )}
                   </td>
@@ -579,7 +562,32 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         className={`text-xs ${canManage ? 'cursor-pointer text-[var(--color-accent)] hover:underline' : 'text-[var(--color-text-muted)]'}`}
                         title={canManage ? 'Cliquer pour ajouter' : undefined}
                       >
-                        {canManage ? '+ ajouter' : '—'}
+                        {canManage ? '+ ajouter' : EMPTY_MARK}
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="px-4 py-3 text-center">
+                    {canManage && editingJoinedAt?.id === player.id ? (
+                      <input
+                        autoFocus
+                        type="date"
+                        value={editingJoinedAt.value}
+                        onChange={(e) => setEditingJoinedAt({ id: player.id, value: e.target.value })}
+                        onBlur={() => handleSaveJoinedAt(player.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void handleSaveJoinedAt(player.id)
+                          if (e.key === 'Escape') setEditingJoinedAt(null)
+                        }}
+                        className="w-32 text-xs px-1.5 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
+                      />
+                    ) : (
+                      <span
+                        onClick={() => canManage ? setEditingJoinedAt({ id: player.id, value: player.joinedAt ?? '' }) : undefined}
+                        className={`text-xs tabular-nums ${canManage ? 'cursor-text hover:underline decoration-dotted underline-offset-2' : ''} ${!player.joinedAt ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text-primary)]'}`}
+                        title={canManage ? 'Cliquer pour modifier' : undefined}
+                      >
+                        {player.joinedAt ? formatDate(player.joinedAt) : EMPTY_MARK}
                       </span>
                     )}
                   </td>
@@ -600,7 +608,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                             disabled={isSaving}
                             className="text-xs px-2.5 py-1 rounded-md bg-[var(--color-danger)] text-white hover:opacity-90 disabled:opacity-40"
                           >
-                            {isSaving ? '…' : 'Confirmer'}
+                            {isSaving ? ELLIPSIS : 'Confirmer'}
                           </button>
                           <button
                             onClick={() => setConfirmDel(null)}
@@ -616,7 +624,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                             disabled={isSaving}
                             className="text-xs px-2.5 py-1 rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-40"
                           >
-                            {player.isActive ? 'Désactiver' : 'Réactiver'}
+                            {player.isActive ? 'D\u00E9sactiver' : 'R\u00E9activer'}
                           </button>
                           <button
                             onClick={() => setConfirmDel(player.id)}
@@ -633,7 +641,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={canManage ? 7 : 6} className="px-5 py-10 text-center text-sm text-[var(--color-text-muted)]">
+                  <td colSpan={canManage ? 8 : 7} className="px-5 py-10 text-center text-sm text-[var(--color-text-muted)]">
                     Aucun joueur correspondant
                   </td>
                 </tr>
@@ -644,6 +652,13 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
       </Card>
     </div>
   )
+}
+
+/** Formate "YYYY-MM-DD" vers "DD/MM/YYYY". */
+function formatDate(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return iso
+  return `${d}/${m}/${y}`
 }
 
 function StatPill({ label, value, dim }: { label: string; value: string; dim?: boolean }) {
@@ -678,7 +693,7 @@ function RankSelect({
           : 'border-[var(--color-border)] text-[var(--color-text-muted)]',
       ].join(' ')}
     >
-      <option value="">— Non classé</option>
+      <option value="">{EMPTY_MARK} Non class\u00E9</option>
       {PLAYER_RANKS.slice().reverse().map((rank) => (
         <option key={rank} value={rank}>{RANK_LABEL[rank]}</option>
       ))}
@@ -695,6 +710,7 @@ function AddPlayerForm({
 }) {
   const [name, setName] = useState('')
   const [rank, setRank] = useState<string>('')
+  const [joinedAt, setJoinedAt] = useState(() => new Date().toISOString().split('T')[0])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -712,6 +728,7 @@ function AddPlayerForm({
         body: JSON.stringify({
           name: name.trim(),
           currentRank: rank || undefined,
+          joinedAt: joinedAt || undefined,
         }),
       })
 
@@ -752,11 +769,20 @@ function AddPlayerForm({
           onChange={(e) => setRank(e.target.value)}
           className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
         >
-          <option value="">— Non classé</option>
+          <option value="">{EMPTY_MARK} Non class\u00E9</option>
           {PLAYER_RANKS.slice().reverse().map((playerRank) => (
             <option key={playerRank} value={playerRank}>{RANK_LABEL[playerRank]}</option>
           ))}
         </select>
+      </div>
+      <div className="min-w-[140px]">
+        <label className="label-xs block mb-1">Date d&apos;arriv\u00E9e</label>
+        <input
+          type="date"
+          value={joinedAt}
+          onChange={(e) => setJoinedAt(e.target.value)}
+          className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+        />
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -764,7 +790,7 @@ function AddPlayerForm({
           disabled={loading || !name.trim()}
           className="px-4 py-2 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-40"
         >
-          {loading ? '…' : 'Créer'}
+          {loading ? ELLIPSIS : 'Cr\u00E9er'}
         </button>
         <button
           type="button"

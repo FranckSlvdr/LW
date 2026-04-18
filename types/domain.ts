@@ -1,25 +1,25 @@
-/**
- * Core domain types — source of truth for the business domain.
+﻿/**
+ * Core domain types â€” source of truth for the business domain.
  * These types are shared across client and server.
- * No runtime dependencies — pure TypeScript interfaces.
+ * No runtime dependencies â€” pure TypeScript interfaces.
  *
- * ─── BIGINT STRATEGY ────────────────────────────────────────────────────────
+ * â”€â”€â”€ BIGINT STRATEGY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  * Last War VS scores are stored as BIGINT in PostgreSQL. The `postgres` npm
  * client returns BIGINT columns as `string` by default to avoid JS precision
- * loss (Number.MAX_SAFE_INTEGER ≈ 9 quadrillion — scores are unlikely to
+ * loss (Number.MAX_SAFE_INTEGER â‰ˆ 9 quadrillion â€” scores are unlikely to
  * exceed this, but we normalize defensively).
  *
  * Strategy: the DB layer (repositories) converts BIGINT strings to `number`
  * via `Number()` after asserting the value is within safe range. If a score
  * ever exceeds Number.MAX_SAFE_INTEGER, we switch to `bigint` in that layer
- * only — the rest of the app stays on `number`. Score fields in these types
+ * only â€” the rest of the app stays on `number`. Score fields in these types
  * are declared as `number` with this guarantee in mind.
- * ────────────────────────────────────────────────────────────────────────────
+ * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  */
 
-// ─── Primitives ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/** Monday=1, Tuesday=2, …, Saturday=6 */
+/** Monday=1, Tuesday=2, â€¦, Saturday=6 */
 export type DayOfWeek = 1 | 2 | 3 | 4 | 5 | 6
 
 export type ImportSource = 'manual' | 'csv' | 'ocr'
@@ -35,7 +35,7 @@ export type AuditAction =
   | 'USER_DEACTIVATED' | 'USER_ACTIVATED'
   | 'ROLE_CHANGED'
 
-// ─── Auth & Permissions ─────────────────────────────────────────────────────
+// â”€â”€â”€ Auth & Permissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type UserRole = 'super_admin' | 'admin' | 'manager' | 'viewer'
 
@@ -78,30 +78,30 @@ export interface AuthUser {
   tokenVersion: number
 }
 
-// ─── Players ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Players â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Alliance rank system.
- * R5 = Leader · R4 = Officers · R3 = Active · R2 = Occasional · R1 = Inactive/review
+ * R5 = Leader Â· R4 = Officers Â· R3 = Active Â· R2 = Occasional Â· R1 = Inactive/review
  */
 export type PlayerRank = 'R1' | 'R2' | 'R3' | 'R4' | 'R5'
 
 export const PLAYER_RANKS: PlayerRank[] = ['R1', 'R2', 'R3', 'R4', 'R5']
 
 export const RANK_LABEL: Record<PlayerRank, string> = {
-  R5: 'R5 — Leader',
-  R4: 'R4 — Officier',
-  R3: 'R3 — Membre actif',
-  R2: 'R2 — Membre occasionnel',
-  R1: 'R1 — Inactif / À revoir',
+  R5: 'R5 \u2014 Leader',
+  R4: 'R4 \u2014 Officier',
+  R3: 'R3 \u2014 Membre actif',
+  R2: 'R2 \u2014 Membre occasionnel',
+  R1: 'R1 \u2014 Inactif / \u00C0 revoir',
 }
 
 export interface Player {
   id: number
   name: string
-  /** Lowercase, no diacritics, no special chars — used for dedup and OCR matching */
+  /** Lowercase, no diacritics, no special chars â€” used for dedup and OCR matching */
   normalizedName: string
-  /** Optional in-game alias — internal only, used for OCR score matching */
+  /** Optional in-game alias â€” internal only, used for OCR score matching */
   alias: string | null
   /**
    * Rank actually assigned by leadership.
@@ -122,15 +122,15 @@ export interface Player {
   isActive: boolean
   /** Player's overall in-game level (manually set) */
   generalLevel: number | null
-  /** Active profession key — null if no profession recorded */
+  /** Active profession key â€” null if no profession recorded */
   professionKey: string | null
-  /** Profession level (1–10) — null if no profession recorded */
+  /** Profession level (1â€“10) â€” null if no profession recorded */
   professionLevel: number | null
   createdAt: Date
   updatedAt: Date
 }
 
-// ─── VS Weeks ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ VS Weeks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface Week {
   id: number
@@ -138,14 +138,14 @@ export interface Week {
   startDate: Date
   /** Always a Saturday */
   endDate: Date
-  /** Human label, e.g. "Semaine 14 · 2025" */
+  /** Human label, e.g. "Semaine 14 Â· 2025" */
   label: string
   /** Locked weeks cannot be modified */
   isLocked: boolean
   createdAt: Date
 }
 
-// ─── VS Eco Days ───────────────────────────────────────────────────────────
+// â”€â”€â”€ VS Eco Days â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Alliance-level eco day flag for a VS week.
@@ -160,7 +160,7 @@ export interface VsDay {
   updatedAt: Date
 }
 
-// ─── Daily Scores ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Daily Scores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface DailyScore {
   id: number
@@ -174,7 +174,7 @@ export interface DailyScore {
   updatedAt: Date
 }
 
-// ─── Rating System ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Rating System â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * A rating run is a versioned snapshot of a rating calculation.
@@ -203,19 +203,19 @@ export interface PlayerRating {
   id: number
   playerId: number
   ratingRunId: number
-  /** Normalized VS score component (0–1) */
+  /** Normalized VS score component (0â€“1) */
   rawVsScore: number | null
-  /** Regularity component: low variance = high score (0–1) */
+  /** Regularity component: low variance = high score (0â€“1) */
   regularity: number | null
-  /** Participation: days played / 6 (0–1) */
+  /** Participation: days played / 6 (0â€“1) */
   participation: number | null
-  /** Event performance — null until events module is active */
+  /** Event performance â€” null until events module is active */
   eventScore: number | null
-  /** Profession level — null until professions module is active */
+  /** Profession level â€” null until professions module is active */
   professionScore: number | null
   /** Manual bonus or malus applied by admin */
   bonusMalus: number
-  /** Final weighted score, scaled 0–100 */
+  /** Final weighted score, scaled 0â€“100 */
   finalScore: number | null
   rank: number | null
   computedAt: Date
@@ -223,7 +223,7 @@ export interface PlayerRating {
 
 /**
  * Configurable weights for the rating engine.
- * Stored in DB (rating_rules table) — modifiable without deployment.
+ * Stored in DB (rating_rules table) â€” modifiable without deployment.
  * All weights should sum to 1.0 when all modules are active.
  */
 export interface RatingRules {
@@ -260,7 +260,7 @@ export interface RatingRule {
   updatedAt: Date
 }
 
-// ─── Imports ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Imports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface Import {
   id: number
@@ -293,7 +293,7 @@ export interface ImportError {
   message: string
 }
 
-// ─── Desert Storm ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Desert Storm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface DesertStormScore {
   id: number
@@ -304,7 +304,7 @@ export interface DesertStormScore {
   updatedAt: Date
 }
 
-// ─── Contributions ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Contributions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface Contribution {
   id: number
@@ -316,11 +316,11 @@ export interface Contribution {
   updatedAt: Date
 }
 
-// ─── Train system ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Train system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type SelectionReason = 'ds_top_scorer' | 'best_contributor' | 'random' | 'manual'
 
-/** Monday=1 … Sunday=7 */
+/** Monday=1 â€¦ Sunday=7 */
 export type TrainDay = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 export interface TrainSettings {
@@ -357,7 +357,7 @@ export interface TrainSelection {
   selectionReason: SelectionReason
 }
 
-// ─── Future modules (stubs — types defined now, tables exist) ──────────────
+// â”€â”€â”€ Future modules (stubs â€” types defined now, tables exist) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface EventParticipation {
   id: number
@@ -378,9 +378,9 @@ export interface PlayerProfession {
   updatedAt: Date
 }
 
-// ─── Audit ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Audit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/** Auditable domain entities — extend when adding new modules */
+/** Auditable domain entities â€” extend when adding new modules */
 export type AuditEntityType =
   | 'player'
   | 'week'
@@ -404,7 +404,7 @@ export interface AuditLog {
   createdAt: Date
 }
 
-// ─── User management ───────────────────────────────────────────────────────
+// â”€â”€â”€ User management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface User {
   id: string

@@ -200,10 +200,10 @@ export const en: Dictionary = {
   },
 
   desertStorm: {
-    pageTitle:    'Desert Storm',
-    statRecorded: 'Scores recorded',
-    statMissing:  'Players without score',
-    statBest:     'Best score',
+    pageTitle:  'Desert Storm',
+    statTeamA:  'Team A registered',
+    statTeamB:  'Team B registered',
+    statAbsent: 'Absent',
   },
 
   ocr: {

@@ -1,19 +1,29 @@
-import { ok, created, fail } from '@/lib/apiResponse'
-import { requireAuth } from '@/server/security/authGuard'
-import { getContributionsForWeek, upsertPlayerContribution, removeContribution } from '@/server/services/contributionService'
-import { ValidationError } from '@/lib/errors'
 import { z } from 'zod'
+import { ok, created, fail } from '@/lib/apiResponse'
+import { ValidationError } from '@/lib/errors'
+import {
+  API_RATE_LIMIT,
+  buildRateLimitIdentifier,
+  rateLimit,
+  rateLimitResponse,
+} from '@/lib/rateLimit'
+import { requireAuth } from '@/server/security/authGuard'
+import {
+  getContributionsForWeek,
+  removeContribution,
+  upsertPlayerContribution,
+} from '@/server/services/contributionService'
 
 const upsertSchema = z.object({
   playerId: z.number().int().positive(),
-  weekId:   z.number().int().positive(),
-  amount:   z.number().int().min(0),
-  note:     z.string().max(200).optional(),
+  weekId: z.number().int().positive(),
+  amount: z.number().int().min(0),
+  note: z.string().max(200).optional(),
 })
 
 const deleteSchema = z.object({
   playerId: z.number().int().positive(),
-  weekId:   z.number().int().positive(),
+  weekId: z.number().int().positive(),
 })
 
 export async function GET(request: Request) {
@@ -31,9 +41,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireAuth('scores:edit')
-    const body   = await request.json()
-    const input  = upsertSchema.parse(body)
+    const actor = await requireAuth('scores:edit')
+    const limit = await rateLimit(
+      'contributions:upsert',
+      buildRateLimitIdentifier(request, actor.id),
+      API_RATE_LIMIT,
+    )
+    if (!limit.ok) {
+      return rateLimitResponse(limit)
+    }
+
+    const body = await request.json()
+    const input = upsertSchema.parse(body)
     const result = await upsertPlayerContribution(input)
     return created(result)
   } catch (err) {
@@ -43,8 +62,17 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    await requireAuth('scores:edit')
-    const body  = await request.json()
+    const actor = await requireAuth('scores:edit')
+    const limit = await rateLimit(
+      'contributions:delete',
+      buildRateLimitIdentifier(request, actor.id),
+      API_RATE_LIMIT,
+    )
+    if (!limit.ok) {
+      return rateLimitResponse(limit)
+    }
+
+    const body = await request.json()
     const input = deleteSchema.parse(body)
     await removeContribution(input.playerId, input.weekId)
     return ok({ deleted: true })

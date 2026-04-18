@@ -1,30 +1,56 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { LOCALES, DEFAULT_LOCALE, isValidLocale } from '@/lib/i18n/config'
+import { DEFAULT_LOCALE, LOCALES, isValidLocale } from '@/lib/i18n/config'
+import { signJwt, verifyJwt } from '@/lib/jwt'
 import { parseAcceptLanguage } from '@/lib/i18n/utils'
-import { verifyJwt } from '@/lib/jwt'
+import { SESSION_COOKIE, SESSION_MAX_AGE } from '@/server/security/sessionConfig'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const PUBLIC_EXACT = new Set(['/login'])
+const PUBLIC_PREFIXES = ['/auth/', '/api/auth/', '/api/cron/']
 
-const SESSION_COOKIE = '_session'
+function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_EXACT.has(pathname)) return true
+  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+}
 
-// Routes that don't require authentication
-const PUBLIC_PATHS = [
-  '/login',
-  '/auth/',
-  '/api/auth/login',
-  '/api/auth/logout',
-  '/api/auth/forgot-password',
-  '/api/auth/reset-password',
-  '/api/auth/accept-invite',
-]
+function buildUnauthorizedResponse(
+  request: NextRequest,
+  pathname: string,
+  search: string,
+  clearCookie: boolean,
+): NextResponse {
+  if (pathname.startsWith('/api/')) {
+    const response = NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        },
+      },
+      { status: 401 },
+    )
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
+    if (clearCookie) {
+      response.cookies.delete(SESSION_COOKIE)
+    }
+
+    return response
+  }
+
+  const loginUrl = new URL('/login', request.url)
+  loginUrl.searchParams.set('redirect', `${pathname}${search}`)
+
+  const response = NextResponse.redirect(loginUrl)
+  if (clearCookie) {
+    response.cookies.delete(SESSION_COOKIE)
+  }
+  return response
+}
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname, search } = request.nextUrl
 
-  // 1. Locale detection — always run regardless of auth state
   const cookieValue = request.cookies.get('NEXT_LOCALE')?.value
   const locale = isValidLocale(cookieValue)
     ? cookieValue
@@ -37,44 +63,50 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-locale', locale)
 
-  // 2. Auth check — skip public paths and static assets
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p))
-  if (!isPublic) {
-    const secret = process.env.APP_SECRET
-    const token  = request.cookies.get(SESSION_COOKIE)?.value
-
-    // Fast path: verify JWT signature + expiry only (no DB — stays Edge-safe)
-    let authenticated = false
-    if (secret && token) {
-      try {
-        const result = await verifyJwt(token, secret)
-        authenticated = result.ok
-      } catch {
-        // crypto failure = not authenticated
-      }
-    }
-
-    if (!authenticated) {
-      // API routes: return 401 JSON
-      if (pathname.startsWith('/api/')) {
-        return NextResponse.json(
-          { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-          { status: 401 },
-        )
-      }
-
-      // Page routes: redirect to /login
-      const loginUrl = new URL('/login', request.url)
-      loginUrl.searchParams.set('redirect', pathname)
-      return NextResponse.redirect(loginUrl)
-    }
+  if (isPublicPath(pathname)) {
+    return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
-  // 3. Pass through with locale header
-  return NextResponse.next({ request: { headers: requestHeaders } })
+  const secret = process.env.APP_SECRET
+  const token = request.cookies.get(SESSION_COOKIE)?.value
+
+  if (!secret || !token) {
+    return buildUnauthorizedResponse(request, pathname, search, false)
+  }
+
+  const result = await verifyJwt(token, secret)
+  if (!result.ok) {
+    return buildUnauthorizedResponse(request, pathname, search, true)
+  }
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } })
+
+  if (result.shouldRefresh) {
+    const refreshedToken = await signJwt(
+      {
+        sub: result.payload.sub,
+        rol: result.payload.rol,
+        nam: result.payload.nam,
+        eml: result.payload.eml,
+        ver: result.payload.ver,
+      },
+      secret,
+    )
+
+    response.cookies.set(SESSION_COOKIE, refreshedToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: SESSION_MAX_AGE,
+      path: '/',
+    })
+  }
+
+  return response
 }
 
 export const config = {
-  // Run on all routes except Next.js internals and static files
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)',
+  ],
 }

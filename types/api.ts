@@ -1,5 +1,5 @@
-/**
- * API contracts — shapes of requests and responses exchanged between
+﻿/**
+ * API contracts â€” shapes of requests and responses exchanged between
  * the Next.js Route Handlers and the frontend.
  *
  * These types are intentionally separate from domain types:
@@ -8,7 +8,7 @@
 
 import type { DayOfWeek, ImportStatus } from './domain'
 
-// ─── VS Eco Days ───────────────────────────────────────────────────────────
+// â”€â”€â”€ VS Eco Days â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface VsDayApi {
   id: number
@@ -17,7 +17,7 @@ export interface VsDayApi {
   isEco: boolean
 }
 
-// ─── Envelope ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Envelope â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ApiSuccess<T> {
   success: true
@@ -36,11 +36,11 @@ export interface ApiError {
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError
 
-// ─── KPI ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ KPI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface DailyScoreApi {
   dayOfWeek: DayOfWeek
-  /** Raw score as entered/imported — never modified */
+  /** Raw score as entered/imported â€” never modified */
   score: number
   /** Score capped at ECO_SCORE_CAP when isEco=true, equals score otherwise */
   adjustedScore: number
@@ -51,12 +51,12 @@ export interface PlayerKpi {
   playerId: number
   playerName: string
   playerAlias: string | null
-  /** Sum of adjusted scores — used for all rankings and KPI calculations */
+  /** Sum of adjusted scores â€” used for all rankings and KPI calculations */
   totalScore: number
-  /** Sum of raw scores — for display purposes */
+  /** Sum of raw scores â€” for display purposes */
   rawTotalScore: number
   daysPlayed: number
-  /** 0–1 */
+  /** 0â€“1 */
   participationRate: number
   dailyAverage: number
   rank: number
@@ -70,9 +70,9 @@ export interface WeekKpiSummary {
   weekId: number
   weekLabel: string
   totalPlayers: number
-  /** Alliance total using adjusted scores — used by the app */
+  /** Alliance total using adjusted scores â€” used by the app */
   globalTotalScore: number
-  /** Alliance total using raw scores — for display only */
+  /** Alliance total using raw scores â€” for display only */
   globalRawTotalScore: number
   globalAverageScore: number
   topPlayers: PlayerKpi[]
@@ -88,7 +88,7 @@ export interface WeekDelta {
   participationDelta: number
 }
 
-// ─── Insights ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Insights â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type InsightType =
   | 'top_performer'
@@ -108,7 +108,7 @@ export interface Insight {
   affectedPlayerIds?: number[]
 }
 
-// ─── Ranking ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Ranking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface RankedPlayer {
   playerId: number
@@ -129,7 +129,7 @@ export interface RankedPlayer {
   }
 }
 
-// ─── Import ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ImportPreview {
   importType: 'players' | 'scores'
@@ -151,7 +151,7 @@ export interface ImportResult {
   errors: Array<{ row: number; field?: string; message: string }>
 }
 
-// ─── Players (API shapes) ───────────────────────────────────────────────────
+// â”€â”€â”€ Players (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface PlayerApi {
   id: number
@@ -182,7 +182,7 @@ export interface UpdatePlayerInput {
   leftAt?: string
 }
 
-// ─── Scores (API shapes) ────────────────────────────────────────────────────
+// â”€â”€â”€ Scores (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface CreateScoreInput {
   playerId: number
@@ -193,7 +193,7 @@ export interface CreateScoreInput {
 
 export type UpsertScoreInput = CreateScoreInput
 
-// ─── Events (API shapes) ────────────────────────────────────────────────────
+// â”€â”€â”€ Events (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface EventApi {
   id: number
@@ -213,7 +213,7 @@ export interface CreateEventInput {
   participated?: boolean
 }
 
-// ─── Professions (API shapes) ────────────────────────────────────────────────
+// â”€â”€â”€ Professions (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ProfessionApi {
   id: number
@@ -230,7 +230,7 @@ export interface UpsertProfessionInput {
   level: number
 }
 
-// ─── Rating (API shapes) ─────────────────────────────────────────────────────
+// â”€â”€â”€ Rating (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface TriggerRatingRunResult {
   runId: number
@@ -252,8 +252,9 @@ export interface TriggerRatingRunResult {
   }>
 }
 
-// ─── Desert Storm (API shapes) ──────────────────────────────────────────────
+// â”€â”€â”€ Desert Storm (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+/** Legacy: conserve pour la compatibilite avec la selection des trains. */
 export interface DesertStormScoreApi {
   id: number
   playerId: number
@@ -264,13 +265,40 @@ export interface DesertStormScoreApi {
   rank: number
 }
 
+/** Legacy: conserve pour la compatibilite avec la selection des trains. */
 export interface UpsertDesertStormInput {
   playerId: number
   weekId: number
   score: number
 }
 
-// ─── Contributions (API shapes) ──────────────────────────────────────────────
+// Desert Storm registrations (nouveau modele par equipes)
+
+export type DsTeam = 'A' | 'B'
+export type DsRole = 'titulaire' | 'rempla\u00E7ant'
+
+export interface DsRegistrationApi {
+  id: number
+  weekId: number
+  playerId: number
+  playerName: string
+  playerAlias: string | null
+  team: DsTeam
+  role: DsRole
+  present: boolean
+  top3Rank: 1 | 2 | 3 | null
+}
+
+export interface UpsertDsRegistrationInput {
+  playerId: number
+  weekId: number
+  team: DsTeam
+  role: DsRole
+  present: boolean
+  top3Rank: 1 | 2 | 3 | null
+}
+
+// â”€â”€â”€ Contributions (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ContributionApi {
   id: number
@@ -290,7 +318,7 @@ export interface UpsertContributionInput {
   note?: string
 }
 
-// ─── Train settings (API shapes) ─────────────────────────────────────────────
+// â”€â”€â”€ Train settings (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface TrainSettingsApi {
   exclusionWindowWeeks: 0 | 1 | 2 | 3
@@ -306,7 +334,7 @@ export interface UpdateTrainSettingsInput extends Partial<TrainSettingsApi> {
   vsTopDays?: number[]
 }
 
-// ─── Train runs (API shapes) ─────────────────────────────────────────────────
+// â”€â”€â”€ Train runs (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface TrainRunApi {
   id: number
@@ -333,7 +361,7 @@ export interface TriggerTrainRunInput {
   trainDay: number
 }
 
-// ─── OCR (API shapes) ────────────────────────────────────────────────────────
+// â”€â”€â”€ OCR (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type OcrMatchType = 'exact' | 'alias' | 'fuzzy' | 'none'
 
@@ -392,21 +420,21 @@ export interface OcrConfirmInput {
   rows: OcrConfirmRowInput[]
 }
 
-// ─── Analytics (API shapes) ─────────────────────────────────────────────────
+// â”€â”€â”€ Analytics (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Stored in week_kpi_snapshots.payload — locale-agnostic subset of DashboardData.
+ * Stored in week_kpi_snapshots.payload â€” locale-agnostic subset of DashboardData.
  * The insights field is intentionally absent; it's regenerated from allKpis
  * on each read so locale switching always produces correct messages.
  */
 export interface DashboardSnapshot {
   summary: WeekKpiSummary
   allKpis: PlayerKpi[]
-  /** Previous week KPIs — needed to generate rank-trend insights. Null for first week. */
+  /** Previous week KPIs â€” needed to generate rank-trend insights. Null for first week. */
   prevKpis: PlayerKpi[] | null
-  /** playerId → alliance rank tier ('R1'..'R5' | null) at snapshot time */
+  /** playerId â†’ alliance rank tier ('R1'..'R5' | null) at snapshot time */
   playerRanks: Record<number, string | null>
-  /** Player count per generalLevel — pre-computed to avoid extra getAllPlayers() on dashboard */
+  /** Player count per generalLevel â€” pre-computed to avoid extra getAllPlayers() on dashboard */
   levelBuckets: Array<{ level: number; count: number }>
 }
 
@@ -417,11 +445,11 @@ export interface WeekRankStatsApi {
   activeCount: number   // players with daysPlayed > 0
   totalScore: number
   avgScore: number      // totalScore / activeCount (0 if no active)
-  avgParticipation: number  // 0–1
+  avgParticipation: number  // 0â€“1
   avgDaysPlayed: number
 }
 
-// ─── Weeks (API shapes) ─────────────────────────────────────────────────────
+// â”€â”€â”€ Weeks (API shapes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface WeekApi {
   id: number

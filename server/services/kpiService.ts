@@ -1,10 +1,11 @@
 import 'server-only'
 import { unstable_cache } from 'next/cache'
+import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { findAllPlayers } from '@/server/repositories/playerRepository'
 import { findScoresByWeek } from '@/server/repositories/scoreRepository'
 import { findWeekById, findAllWeeks } from '@/server/repositories/weekRepository'
 import { findVsDaysByWeekAsMap } from '@/server/repositories/vsDayRepository'
-import { findSnapshot, saveSnapshot } from '@/server/repositories/analyticsRepository'
+import { findSnapshot, findStoredSnapshot, saveSnapshot } from '@/server/repositories/analyticsRepository'
 import { computeKpis, getTopPlayers, getFlopPlayers } from '@/server/engines/kpiEngine'
 import { generateInsights } from '@/server/engines/insightEngine'
 import { NotFoundError } from '@/lib/errors'
@@ -81,14 +82,23 @@ export function computeRankDistribution(
 export async function computeDashboardCore(weekId: number): Promise<DashboardSnapshot> {
   const done = perf('kpiService.computeDashboardCore')
 
-  const [week, players, currentScores, ecoDays, allWeeks] = await Promise.all([
+  const [week, allPlayers, currentScores, ecoDays, allWeeks] = await Promise.all([
     findWeekById(weekId),
-    findAllPlayers(),
+    findAllPlayers(false),           // actifs + inactifs
     findScoresByWeek(weekId),
     findVsDaysByWeekAsMap(weekId),
     findAllWeeks(),
   ])
   if (!week) throw new NotFoundError('Week', weekId)
+
+  // Joueurs éligibles pour cette semaine :
+  //   - joinedAt absent ou ≤ fin de semaine  (joueur déjà arrivé)
+  //   - leftAt absent ou ≥ début de semaine  (joueur pas encore parti)
+  const players = allPlayers.filter((p) => {
+    if (p.joinedAt && p.joinedAt > week.endDate)   return false
+    if (p.leftAt   && p.leftAt   < week.startDate) return false
+    return true
+  })
 
   // Identify previous week
   const sorted = allWeeks
@@ -106,13 +116,19 @@ export async function computeDashboardCore(weekId: number): Promise<DashboardSna
     ])
   }
 
-  const allKpis = computeKpis({
+  const allKpisRaw = computeKpis({
     players,
     currentScores,
     previousScores,
     ecoDays,
     previousEcoDays,
   })
+
+  // Les joueurs inactifs n'apparaissent que s'ils ont des scores cette semaine
+  const playerMap = new Map(players.map((p) => [p.id, p]))
+  const allKpis = allKpisRaw.filter(
+    (kpi) => (playerMap.get(kpi.playerId)?.isActive ?? true) || kpi.daysPlayed > 0,
+  )
 
   // ── Compute prevKpis ONCE — reused for delta AND insights (was computed 3× before) ──
   const prevKpis =
@@ -162,9 +178,10 @@ export async function computeDashboardCore(weekId: number): Promise<DashboardSna
     playerRanks[p.id] = p.currentRank
   }
 
-  // Pre-compute level buckets — avoids a separate getAllPlayers() call on the dashboard
+  // Pre-compute level buckets (joueurs actifs uniquement)
   const levelMap: Record<number, number> = {}
   for (const p of players) {
+    if (!p.isActive) continue
     if (p.generalLevel != null) levelMap[p.generalLevel] = (levelMap[p.generalLevel] ?? 0) + 1
   }
   const levelBuckets = Object.entries(levelMap)
@@ -191,6 +208,14 @@ async function computeOrReadSnapshot(weekId: number): Promise<DashboardSnapshot>
   // Layer 2: DB snapshot
   const snapshot = await findSnapshot(weekId)
   if (snapshot) return snapshot
+
+  if (IS_VERCEL_RUNTIME) {
+    const storedSnapshot = await findStoredSnapshot(weekId)
+    if (storedSnapshot) {
+      logger.warn('Serving stale dashboard snapshot on Vercel', { weekId })
+      return storedSnapshot
+    }
+  }
 
   // Layer 3: full computation
   const fresh = await computeDashboardCore(weekId)
@@ -226,6 +251,14 @@ function getDashboardCoreForWeek(weekId: number) {
   )
 }
 
+async function readDashboardCoreForWeek(weekId: number): Promise<DashboardSnapshot> {
+  if (!USE_NEXT_DATA_CACHE) {
+    return computeOrReadSnapshot(weekId)
+  }
+
+  return getDashboardCoreForWeek(weekId)()
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -237,7 +270,7 @@ function getDashboardCoreForWeek(weekId: number) {
  */
 export async function getDashboardData(weekId: number): Promise<DashboardData> {
   // Fetch cached core (1 of the 3 cache layers above)
-  const snapshot = await getDashboardCoreForWeek(weekId)()
+  const snapshot = await readDashboardCoreForWeek(weekId)
 
   // Generate locale-aware insights from cached data — pure, no DB
   const locale = await getLocale()

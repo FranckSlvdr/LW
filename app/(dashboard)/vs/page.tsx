@@ -4,7 +4,6 @@ import { KpiCards } from '@/features/dashboard/components/KpiCards'
 import { TopFlopPanel } from '@/features/dashboard/components/TopFlopPanel'
 import { ScoreHeatmap } from '@/features/dashboard/components/ScoreHeatmap'
 import { InsightsPanel } from '@/features/dashboard/components/InsightsPanel'
-import { DailyScoresForm } from '@/features/vs/components/DailyScoresForm'
 import { EcoDayBar } from '@/features/vs/components/EcoDayBar'
 import { ExportButton } from '@/components/ui/ExportButton'
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton'
@@ -50,16 +49,6 @@ async function VsContent({
 
   const { summary, allKpis, insights } = dashboardData
 
-  const existingScores = allKpis.flatMap((kpi) =>
-    kpi.dailyScores
-      .filter((ds) => ds.score > 0)
-      .map((ds) => ({
-        playerId:  kpi.playerId,
-        dayOfWeek: ds.dayOfWeek as number,
-        score:     ds.score,
-      })),
-  )
-
   if (allKpis.length === 0) {
     return (
       <main className="flex-1 overflow-y-auto">
@@ -70,17 +59,6 @@ async function VsContent({
             canEdit={canEco}
             disabledReason={manualEditDisabledReason ?? undefined}
           />
-          {canEdit && (
-            <DailyScoresForm
-              weekId={weekId}
-              weekLabel={currentWeek.label}
-              players={players}
-              existingScores={existingScores}
-              ecoDays={vsDays}
-              disabled={manualEditDisabledReason !== null}
-              disabledReason={manualEditDisabledReason ?? undefined}
-            />
-          )}
         </div>
       </main>
     )
@@ -133,22 +111,9 @@ async function VsContent({
         </section>
 
         <section>
-          <ScoreHeatmap kpis={allKpis} dict={dict.heatmap} />
+          <ScoreHeatmap kpis={allKpis} dict={dict.heatmap} weekId={weekId} canEdit={canEdit} />
         </section>
 
-        {canEdit && (
-          <section>
-            <DailyScoresForm
-              weekId={weekId}
-              weekLabel={currentWeek.label}
-              players={players}
-              existingScores={existingScores}
-              ecoDays={vsDays}
-              disabled={manualEditDisabledReason !== null}
-              disabledReason={manualEditDisabledReason ?? undefined}
-            />
-          </section>
-        )}
 
         {insights.length > 0 && (
           <section>
@@ -220,11 +185,8 @@ export default async function VsPage({ searchParams }: PageProps) {
   const selectedWeekId = weekIdParam ? Number(weekIdParam) : weeks[0]!.id
   const validWeekId    = weeks.find((w) => w.id === selectedWeekId)?.id ?? weeks[0]!.id
   const currentWeek    = weeks.find((w) => w.id === validWeekId)!
-  const isLatestWeek   = weeks[0]?.id === currentWeek.id
   const manualEditDisabledReason = currentWeek.isLocked
     ? 'Semaine verrouillee : les saisies manuelles sont bloquees.'
-    : !isLatestWeek
-    ? 'Les saisies manuelles sont autorisees uniquement sur la semaine active.'
     : null
 
   const dict = await getDict(locale)

@@ -1,16 +1,33 @@
 import { ok, fail } from '@/lib/apiResponse'
+import {
+  API_RATE_LIMIT,
+  buildRateLimitIdentifier,
+  getClientIp,
+  rateLimit,
+  rateLimitResponse,
+} from '@/lib/rateLimit'
 import { requireAuth } from '@/server/security/authGuard'
 import { adminForcePasswordReset } from '@/server/services/userService'
 
-interface Params { params: Promise<{ id: string }> }
-
-export async function POST(request: Request, { params }: Params) {
+export async function POST(
+  request: Request,
+  context: RouteContext<'/api/users/[id]/force-reset'>,
+) {
   try {
-    const actor  = await requireAuth('users:manage')
-    const { id } = await params
-    const ip     = (request.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim()
+    const actor = await requireAuth('users:manage')
+    const limit = await rateLimit(
+      'users:force-reset',
+      buildRateLimitIdentifier(request, actor.id),
+      API_RATE_LIMIT,
+    )
+    if (!limit.ok) {
+      return rateLimitResponse(limit)
+    }
 
-    const result = await adminForcePasswordReset(id, actor, { ipAddress: ip })
+    const { id } = await context.params
+    const result = await adminForcePasswordReset(id, actor, {
+      ipAddress: getClientIp(request),
+    })
     return ok(result)
   } catch (err) {
     return fail(err)

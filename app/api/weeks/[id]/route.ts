@@ -1,8 +1,14 @@
+import { z } from 'zod'
 import { ok, fail } from '@/lib/apiResponse'
+import { BadRequestError } from '@/lib/errors'
+import {
+  API_RATE_LIMIT,
+  buildRateLimitIdentifier,
+  rateLimit,
+  rateLimitResponse,
+} from '@/lib/rateLimit'
 import { requireAuth } from '@/server/security/authGuard'
 import { lockExistingWeek } from '@/server/services/weekService'
-import { BadRequestError } from '@/lib/errors'
-import { z } from 'zod'
 
 const patchSchema = z.object({
   isLocked: z.boolean(),
@@ -10,15 +16,25 @@ const patchSchema = z.object({
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  context: RouteContext<'/api/weeks/[id]'>,
 ) {
   try {
-    await requireAuth('weeks:manage')
-    const { id } = await params
+    const actor = await requireAuth('weeks:manage')
+    const limit = await rateLimit(
+      'weeks:lock',
+      buildRateLimitIdentifier(request, actor.id),
+      API_RATE_LIMIT,
+    )
+    if (!limit.ok) {
+      return rateLimitResponse(limit)
+    }
+
+    const { id } = await context.params
     const weekId = Number(id)
     if (!Number.isInteger(weekId) || weekId <= 0) {
       throw new BadRequestError('weekId invalide')
     }
+
     const body = await request.json()
     const { isLocked } = patchSchema.parse(body)
     const week = await lockExistingWeek(weekId, isLocked)

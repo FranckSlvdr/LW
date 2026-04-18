@@ -1,10 +1,31 @@
+import { getSmtpConfigStatus } from '@/server/config/smtp'
+
 // Server component — safe to read process.env
 export default function SecurityPage() {
-  const smtpConfigured   = Boolean(process.env.SMTP_HOST)
+  const smtp = getSmtpConfigStatus()
   const appSecretLength  = (process.env.APP_SECRET ?? '').length
   const appUrl           = process.env.NEXT_PUBLIC_APP_URL ?? '—'
   const isVercel         = Boolean(process.env.VERCEL)
   const nodeEnv          = process.env.NODE_ENV ?? 'development'
+  const transactionalEmailBehavior =
+    isVercel || nodeEnv === 'production'
+      ? 'Sans SMTP valide, les invitations et resets par email echouent avec une erreur serveur.'
+      : "Sans SMTP valide, les emails ne partent pas: le service ecrit seulement le destinataire et le sujet dans les logs."
+
+  const smtpStatus = smtp.configured
+    ? {
+        value: `Oui — ${smtp.host}:${smtp.port}`,
+        color: 'text-[var(--color-success)]',
+      }
+    : smtp.partial
+      ? {
+          value: `Partielle — manquantes: ${smtp.missing.join(', ')}`,
+          color: 'text-[var(--color-danger)]',
+        }
+      : {
+          value: 'Non',
+          color: 'text-[var(--color-warning)]',
+        }
 
   const secretStrength =
     appSecretLength >= 44 ? { label: 'Fort (≥ 44 car.)', color: 'text-[var(--color-success)]' } :
@@ -43,11 +64,11 @@ export default function SecurityPage() {
       items: [
         {
           label: 'SMTP configuré',
-          value: smtpConfigured ? `Oui — ${process.env.SMTP_HOST}:${process.env.SMTP_PORT ?? 587}` : 'Non — fallback stdout actif',
-          color: smtpConfigured ? 'text-[var(--color-success)]' : 'text-[var(--color-warning)]',
+          value: smtpStatus.value,
+          color: smtpStatus.color,
         },
-        { label: 'From',    value: process.env.EMAIL_FROM ?? 'noreply@lastwar.app (défaut)' },
-        { label: 'Effet si SMTP absent', value: 'Les liens d\'invitation / reset sont affichés en clair dans les logs ou l\'UI admin' },
+        { label: 'From',    value: smtp.from },
+        { label: 'Effet si SMTP absent', value: transactionalEmailBehavior },
       ],
     },
     {

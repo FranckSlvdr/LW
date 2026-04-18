@@ -1,10 +1,20 @@
-import { ok, created, fail } from '@/lib/apiResponse'
-import { requireAuth } from '@/server/security/authGuard'
-import { getTrainRunsForWeek, triggerTrainSelection, getRecentTrainHistory } from '@/server/services/trainService'
 import { z } from 'zod'
+import { ok, created, fail } from '@/lib/apiResponse'
+import {
+  HEAVY_API_RATE_LIMIT,
+  buildRateLimitIdentifier,
+  rateLimit,
+  rateLimitResponse,
+} from '@/lib/rateLimit'
+import { requireAuth } from '@/server/security/authGuard'
+import {
+  getRecentTrainHistory,
+  getTrainRunsForWeek,
+  triggerTrainSelection,
+} from '@/server/services/trainService'
 
 const triggerSchema = z.object({
-  weekId:   z.number().int().positive(),
+  weekId: z.number().int().positive(),
   trainDay: z.number().int().min(1).max(7),
 })
 
@@ -28,9 +38,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireAuth('trains:trigger')
-    const body   = await request.json()
-    const input  = triggerSchema.parse(body)
+    const actor = await requireAuth('trains:trigger')
+    const limit = await rateLimit(
+      'trains:trigger',
+      buildRateLimitIdentifier(request, actor.id),
+      HEAVY_API_RATE_LIMIT,
+    )
+    if (!limit.ok) {
+      return rateLimitResponse(limit, 'Trop de tirages de train en peu de temps.')
+    }
+
+    const body = await request.json()
+    const input = triggerSchema.parse(body)
     const result = await triggerTrainSelection(input)
     return created(result)
   } catch (err) {

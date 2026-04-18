@@ -1,5 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
+import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import {
   findAllWeeks,
   findWeekById,
@@ -39,6 +40,11 @@ const getAllWeeksCached = unstable_cache(
 )
 
 export async function getAllWeeks(): Promise<WeekApi[]> {
+  if (!USE_NEXT_DATA_CACHE) {
+    const weeks = await findAllWeeks()
+    return weeks.map(toWeekApi)
+  }
+
   return getAllWeeksCached()
 }
 
@@ -54,24 +60,13 @@ export async function getLatestWeek(): Promise<WeekApi | null> {
 }
 
 export async function assertWeekOpenForManualEntry(weekId: number): Promise<WeekApi> {
-  const [week, latestWeek] = await Promise.all([
-    findWeekById(weekId),
-    findLatestWeek(),
-  ])
+  const week = await findWeekById(weekId)
 
   if (!week) throw new NotFoundError('Week', weekId)
   if (week.isLocked) {
     throw new AppError(
       'Cette semaine est verrouillee. Les saisies manuelles sont desactivees.',
       'WEEK_LOCKED',
-      423,
-    )
-  }
-
-  if (latestWeek && latestWeek.id !== week.id) {
-    throw new AppError(
-      'Les saisies manuelles sont autorisees uniquement sur la semaine active la plus recente.',
-      'WEEK_CLOSED',
       423,
     )
   }

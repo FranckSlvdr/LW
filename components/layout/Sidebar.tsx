@@ -2,7 +2,7 @@ import { NavLink } from './NavLink'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { LogoutButton } from '@/components/auth/LogoutButton'
-import { getSessionUser } from '@/server/security/authGuard'
+import type { AuthUser } from '@/types/domain'
 
 const NAV_ICONS = {
   dashboard: (<svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 4a2 2 0 012-2h3a2 2 0 012 2v3a2 2 0 01-2 2H4a2 2 0 01-2-2V4zM11 4a2 2 0 012-2h3a2 2 0 012 2v3a2 2 0 01-2 2h-3a2 2 0 01-2-2V4zM2 13a2 2 0 012-2h3a2 2 0 012 2v3a2 2 0 01-2 2H4a2 2 0 01-2-2v-3zM11 13a2 2 0 012-2h3a2 2 0 012 2v3a2 2 0 01-2 2h-3a2 2 0 01-2-2v-3z"/></svg>),
@@ -15,8 +15,12 @@ const NAV_ICONS = {
   settings:  (<svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/></svg>),
 } as const
 
-export async function Sidebar() {
-  const [locale, user] = await Promise.all([getLocale(), getSessionUser()])
+interface SidebarProps {
+  user: AuthUser | null
+}
+
+export async function Sidebar({ user }: SidebarProps) {
+  const locale = await getLocale()
   const dict = await getDict(locale)
   const nav  = dict.nav
   const app  = dict.app

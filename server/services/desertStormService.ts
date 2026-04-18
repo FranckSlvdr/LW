@@ -1,12 +1,20 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
+import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { findDsScoresByWeek, upsertDsScoreWithRank, deleteDsScore } from '@/server/repositories/desertStormRepository'
+import {
+  findDsRegistrationsByWeek,
+  upsertDsRegistration,
+  clearTop3RankForTeam,
+  deleteDsRegistration,
+} from '@/server/repositories/desertStormRegistrationRepository'
 import { findPlayerById } from '@/server/repositories/playerRepository'
 import { assertWeekOpenForManualEntry } from '@/server/services/weekService'
 import { NotFoundError, ValidationError } from '@/lib/errors'
-import type { DesertStormScoreApi, UpsertDesertStormInput } from '@/types/api'
+import type { DesertStormScoreApi, UpsertDesertStormInput, DsRegistrationApi, UpsertDsRegistrationInput } from '@/types/api'
 
 export async function getDsScoresForWeek(weekId: number): Promise<DesertStormScoreApi[]> {
+  if (!USE_NEXT_DATA_CACHE) return readDsScoresForWeek(weekId)
   return getDsScoresForWeekCached(weekId)()
 }
 
@@ -41,6 +49,64 @@ export async function removeDsScore(playerId: number, weekId: number): Promise<v
     revalidateTag(`desert-storm-${weekId}`, { expire: 0 })
   } catch {}
 }
+
+// ─── Registration service ─────────────────────────────────────────────────────
+
+export async function getDsRegistrationsForWeek(weekId: number): Promise<DsRegistrationApi[]> {
+  if (!USE_NEXT_DATA_CACHE) return findDsRegistrationsByWeek(weekId)
+  return getDsRegistrationsForWeekCached(weekId)()
+}
+
+export async function saveDsRegistration(input: UpsertDsRegistrationInput): Promise<DsRegistrationApi> {
+  const player = await findPlayerById(input.playerId)
+  if (!player) throw new NotFoundError('Player', input.playerId)
+
+  // Garantir l'unicité du top3_rank par équipe : vider le joueur précédemment classé
+  if (input.top3Rank !== null) {
+    await clearTop3RankForTeam(input.weekId, input.team, input.top3Rank, input.playerId)
+  }
+
+  const saved = await upsertDsRegistration({
+    playerId:  input.playerId,
+    weekId:    input.weekId,
+    team:      input.team,
+    role:      input.role,
+    present:   input.present,
+    top3Rank:  input.top3Rank,
+  })
+
+  try { revalidateTag(`ds-reg-${input.weekId}`, { expire: 0 }) } catch {}
+
+  return saved
+}
+
+export async function removeDsRegistration(playerId: number, weekId: number): Promise<void> {
+  await deleteDsRegistration(playerId, weekId)
+  try { revalidateTag(`ds-reg-${weekId}`, { expire: 0 }) } catch {}
+}
+
+function getDsRegistrationsForWeekCached(weekId: number) {
+  return unstable_cache(
+    () => findDsRegistrationsByWeek(weekId),
+    ['ds-registrations', String(weekId)],
+    { revalidate: 60, tags: [`ds-reg-${weekId}`] },
+  )
+}
+
+async function readDsScoresForWeek(weekId: number): Promise<DesertStormScoreApi[]> {
+  const rows = await findDsScoresByWeek(weekId)
+  return rows.map((r, idx) => ({
+    id:          r.id,
+    playerId:    r.playerId,
+    playerName:  r.playerName,
+    playerAlias: r.playerAlias,
+    weekId:      r.weekId,
+    score:       r.score,
+    rank:        idx + 1,
+  }))
+}
+
+// ─── Legacy score service (conservé pour les trains) ─────────────────────────
 
 function getDsScoresForWeekCached(weekId: number) {
   return unstable_cache(

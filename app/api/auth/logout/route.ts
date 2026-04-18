@@ -1,10 +1,11 @@
 import { ok, fail } from '@/lib/apiResponse'
+import { getClientIp } from '@/lib/rateLimit'
 import { clearSessionCookie, getSessionUser } from '@/server/security/authGuard'
 import { invalidateUserSessions } from '@/server/services/userService'
 import { insertAuditLog } from '@/server/repositories/auditRepository'
 
 export async function POST(request: Request) {
-  const ip = (request.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim()
+  const ip = getClientIp(request)
   try {
     const user = await getSessionUser()
     if (user) {
@@ -22,6 +23,8 @@ export async function POST(request: Request) {
 
     const response = ok({ loggedOut: true })
     response.headers.set('Set-Cookie', clearSessionCookie())
+    response.headers.set('Cache-Control', 'no-store')
+    response.headers.set('Clear-Site-Data', '"cache", "storage"')
     return response
   } catch (err) {
     return fail(err)

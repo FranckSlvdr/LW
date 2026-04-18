@@ -1,8 +1,14 @@
 import type { NextRequest } from 'next/server'
-import { requireAuth } from '@/server/security/authGuard'
 import { ok, created, fail } from '@/lib/apiResponse'
-import { getScoresByWeek, upsertBulkScores } from '@/server/services/scoreService'
 import { BadRequestError } from '@/lib/errors'
+import {
+  HEAVY_API_RATE_LIMIT,
+  buildRateLimitIdentifier,
+  rateLimit,
+  rateLimitResponse,
+} from '@/lib/rateLimit'
+import { requireAuth } from '@/server/security/authGuard'
+import { getScoresByWeek, upsertBulkScores } from '@/server/services/scoreService'
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +28,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    await requireAuth('scores:import')
+    const actor = await requireAuth('scores:import')
+    const limit = await rateLimit(
+      'scores:bulk-upsert',
+      buildRateLimitIdentifier(request, actor.id),
+      HEAVY_API_RATE_LIMIT,
+    )
+    if (!limit.ok) {
+      return rateLimitResponse(limit, 'Trop de modifications de scores en peu de temps.')
+    }
+
     const body = await request.json()
     const count = await upsertBulkScores(body)
     return created({ count })

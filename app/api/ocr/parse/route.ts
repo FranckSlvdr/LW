@@ -1,62 +1,81 @@
-import { ok, fail } from '@/lib/apiResponse'
-import { requireAuth } from '@/server/security/authGuard'
-import { parseOcrText } from '@/server/engines/ocr/ocrParser'
-import { findAllPlayers } from '@/server/repositories/playerRepository'
-import { BadRequestError } from '@/lib/errors'
 import { z } from 'zod'
+import { ok, fail } from '@/lib/apiResponse'
+import { BadRequestError } from '@/lib/errors'
 import type { OcrParseResultApi, PlayerApi } from '@/types/api'
 import type { OcrProfileName } from '@/server/engines/ocr/ocrParser'
+import {
+  HEAVY_API_RATE_LIMIT,
+  buildRateLimitIdentifier,
+  rateLimit,
+  rateLimitResponse,
+} from '@/lib/rateLimit'
+import { parseOcrText } from '@/server/engines/ocr/ocrParser'
+import { findAllPlayers } from '@/server/repositories/playerRepository'
+import { requireAuth } from '@/server/security/authGuard'
 
 const parseSchema = z.object({
-  text:    z.string().min(1).max(50_000),
+  text: z.string().min(1).max(50_000),
   profile: z.enum(['lastwar-vs', 'generic']).default('lastwar-vs'),
 })
 
 export async function POST(request: Request) {
   try {
-    await requireAuth('scores:import')
-    const body    = await request.json()
+    const actor = await requireAuth('scores:import')
+    const limit = await rateLimit(
+      'ocr:parse',
+      buildRateLimitIdentifier(request, actor.id),
+      HEAVY_API_RATE_LIMIT,
+    )
+    if (!limit.ok) {
+      return rateLimitResponse(limit, 'Trop danalyses OCR en peu de temps.')
+    }
+
+    const body = await request.json()
     const { text, profile } = parseSchema.parse(body)
 
-    if (text.trim().length === 0) throw new BadRequestError('Texte OCR vide')
+    if (text.trim().length === 0) {
+      throw new BadRequestError('Texte OCR vide')
+    }
 
-    // Load active players for matching
     const allPlayers = await findAllPlayers()
     const activePlayers = allPlayers
-      .filter((p) => p.isActive)
-      .map((p) => ({
-        id:             p.id,
-        name:           p.name,
-        normalizedName: p.normalizedName,
-        alias:          p.alias,
+      .filter((player) => player.isActive)
+      .map((player) => ({
+        id: player.id,
+        name: player.name,
+        normalizedName: player.normalizedName,
+        alias: player.alias,
       }))
 
-    const result = parseOcrText(text, profile as OcrProfileName, activePlayers)
+    const result = parseOcrText(
+      text,
+      profile as OcrProfileName,
+      activePlayers,
+    )
 
-    // Build player list for UI dropdowns (all active, not just matched)
     const playersApi: PlayerApi[] = allPlayers
-      .filter((p) => p.isActive)
-      .map((p) => ({
-        id:              p.id,
-        name:            p.name,
-        alias:           p.alias,
-        currentRank:     p.currentRank,
-        suggestedRank:   p.suggestedRank,
-        rankReason:      p.rankReason,
-        isActive:        p.isActive,
-        joinedAt:        p.joinedAt?.toISOString() ?? null,
-        leftAt:          p.leftAt?.toISOString()   ?? null,
-        generalLevel:    p.generalLevel,
-        professionKey:   p.professionKey,
-        professionLevel: p.professionLevel,
+      .filter((player) => player.isActive)
+      .map((player) => ({
+        id: player.id,
+        name: player.name,
+        alias: player.alias,
+        currentRank: player.currentRank,
+        suggestedRank: player.suggestedRank,
+        rankReason: player.rankReason,
+        isActive: player.isActive,
+        joinedAt: player.joinedAt?.toISOString() ?? null,
+        leftAt: player.leftAt?.toISOString() ?? null,
+        generalLevel: player.generalLevel,
+        professionKey: player.professionKey,
+        professionLevel: player.professionLevel,
       }))
 
     const response: OcrParseResultApi = {
-      profile:   result.profile,
-      rows:      result.rows,
+      profile: result.profile,
+      rows: result.rows,
       discarded: result.discarded,
-      players:   playersApi,
-      summary:   result.summary,
+      players: playersApi,
+      summary: result.summary,
     }
 
     return ok(response)

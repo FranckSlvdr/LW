@@ -5,6 +5,9 @@ import { getDashboardData } from '@/server/services/kpiService'
 import { getAllWeeks, getLatestWeek } from '@/server/services/weekService'
 import { BadRequestError, NotFoundError } from '@/lib/errors'
 
+// KPI reads can hit the cold path (snapshot miss + full recomputation).
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   try {
     await requireAuth('dashboard:view')

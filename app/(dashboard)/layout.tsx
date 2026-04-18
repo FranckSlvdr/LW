@@ -3,9 +3,9 @@ import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { getSessionUser } from '@/server/security/authGuard'
 
-// Allow up to 30s for any dashboard page — DB queries + KPI computation
-// can exceed the default 10s Vercel timeout on cold starts.
-export const maxDuration = 30
+// Allow up to 60s for dashboard pages. Production logs showed occasional
+// timeouts on cold starts for KPI-heavy pages behind this layout.
+export const maxDuration = 60
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser()
@@ -13,7 +13,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <div className="flex h-dvh overflow-hidden bg-[var(--color-bg-base)]">
-      <Sidebar />
+      <Sidebar user={user} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {children}
       </div>

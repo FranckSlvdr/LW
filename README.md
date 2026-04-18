@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Last War App
 
-## Getting Started
+## Local setup
 
-First, run the development server:
+1. Copy `.env.example` to `.env.local`.
+2. Fill in `DATABASE_URL`, `APP_SECRET`, and `NEXT_PUBLIC_APP_URL`.
+3. Start the app with `npm run dev`.
+
+## Transactional email / SMTP
+
+The app sends two transactional emails:
+
+- user invitations
+- password reset links
+
+These flows use `nodemailer` with the following server-side environment variables:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+EMAIL_FROM="Last War Tracker <noreply@example.com>"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Behavior by environment:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Local development without SMTP: the app does not send emails and logs email metadata instead.
+- Production / Vercel without valid SMTP: invite and forgot-password flows fail server-side.
+- Admin force-reset without SMTP: the UI can still return a one-time reset URL to copy manually.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Notes:
 
-## Learn More
+- Port `587` is treated as STARTTLS.
+- Port `465` is treated as implicit TLS.
+- `EMAIL_FROM` is optional in code but should be set explicitly in production.
 
-To learn more about Next.js, take a look at the following resources:
+## Vercel configuration
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Add these variables to the `lastwar-app` Vercel project for the environments you use:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+SMTP_HOST
+SMTP_PORT
+SMTP_USER
+SMTP_PASS
+EMAIL_FROM
+```
 
-## Deploy on Vercel
+You can inspect existing variables with:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+vercel env ls production --scope franckslvdr-3595s-projects
+```
