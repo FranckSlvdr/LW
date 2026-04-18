@@ -1,5 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
+import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { computeRatings } from '@/server/engines/ratingEngine'
 import {
   loadActiveRatingRules,
@@ -119,16 +120,19 @@ export async function triggerRatingRun(
 export async function getActiveRatingForWeek(
   weekId: number,
 ): Promise<PlayerRating[] | null> {
+  if (!USE_NEXT_DATA_CACHE) return readActiveRatingForWeek(weekId)
   return getActiveRatingForWeekCached(weekId)()
+}
+
+async function readActiveRatingForWeek(weekId: number): Promise<PlayerRating[] | null> {
+  const run = await findActiveRunForWeek(weekId)
+  if (!run) return null
+  return findPlayerRatingsByRun(run.id)
 }
 
 function getActiveRatingForWeekCached(weekId: number) {
   return unstable_cache(
-    async () => {
-      const run = await findActiveRunForWeek(weekId)
-      if (!run) return null
-      return findPlayerRatingsByRun(run.id)
-    },
+    () => readActiveRatingForWeek(weekId),
     ['active-rating', String(weekId)],
     { revalidate: 120, tags: [`rating-${weekId}`] },
   )

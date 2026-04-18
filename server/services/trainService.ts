@@ -1,5 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
+import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import {
   loadTrainSettings, updateTrainSettings,
   findTrainRunsByWeek, findRecentTrainRuns,
@@ -27,6 +28,7 @@ const DAY_LABELS: Record<number, string> = {
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export async function getTrainSettings(): Promise<TrainSettingsApi> {
+  if (!USE_NEXT_DATA_CACHE) return readTrainSettings()
   return getTrainSettingsCached()
 }
 
@@ -59,7 +61,23 @@ function toSettingsApi(s: TrainSettings): TrainSettingsApi {
 // ─── Runs ─────────────────────────────────────────────────────────────────────
 
 export async function getTrainRunsForWeek(weekId: number): Promise<TrainRunApi[]> {
+  if (!USE_NEXT_DATA_CACHE) return readTrainRunsForWeek(weekId)
   return getTrainRunsForWeekCached(weekId)()
+}
+
+async function readTrainRunsForWeek(weekId: number): Promise<TrainRunApi[]> {
+  const done = perf('trainService.getTrainRunsForWeek')
+  const [week, runs, players] = await Promise.all([
+    findWeekById(weekId),
+    findTrainRunsByWeek(weekId),
+    findAllPlayers(),
+  ])
+  if (!week) throw new NotFoundError('Week', weekId)
+
+  const selectionsByRunId = await findSelectionsByRunsWithPlayers(runs.map((r) => r.id))
+  const result = runs.map((run) => enrichRun(run, week.label, players, selectionsByRunId))
+  done()
+  return result
 }
 
 function getTrainRunsForWeekCached(weekId: number) {
@@ -84,7 +102,24 @@ function getTrainRunsForWeekCached(weekId: number) {
 }
 
 export async function getRecentTrainHistory(limit = 20): Promise<TrainRunApi[]> {
+  if (!USE_NEXT_DATA_CACHE) return readRecentTrainHistory(limit)
   return getRecentTrainHistoryCached(limit)()
+}
+
+async function readRecentTrainHistory(limit: number): Promise<TrainRunApi[]> {
+  const done = perf('trainService.getRecentTrainHistory')
+  const [runs, weeks, players] = await Promise.all([
+    findRecentTrainRuns(limit),
+    findAllWeeks(),
+    findAllPlayers(),
+  ])
+  const weekMap = new Map(weeks.map((w) => [w.id, w.label]))
+  const selectionsByRunId = await findSelectionsByRunsWithPlayers(runs.map((r) => r.id))
+  const result = runs.map((run) =>
+    enrichRun(run, weekMap.get(run.weekId) ?? `Week ${run.weekId}`, players, selectionsByRunId),
+  )
+  done()
+  return result
 }
 
 function getRecentTrainHistoryCached(limit: number) {
@@ -347,10 +382,12 @@ export async function triggerTrainSelection(input: TriggerTrainRunInput): Promis
 }
 
 const getTrainSettingsCached = unstable_cache(
-  async () => {
-    const s = await loadTrainSettings()
-    return toSettingsApi(s)
-  },
+  () => readTrainSettings(),
   ['train-settings'],
   { revalidate: 300, tags: ['train-settings'] },
 )
+
+async function readTrainSettings(): Promise<TrainSettingsApi> {
+  const s = await loadTrainSettings()
+  return toSettingsApi(s)
+}

@@ -1,5 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
+import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { findContributionsByWeek, upsertContributionWithRank, deleteContribution } from '@/server/repositories/contributionRepository'
 import { findPlayerById } from '@/server/repositories/playerRepository'
 import { assertWeekOpenForManualEntry } from '@/server/services/weekService'
@@ -7,6 +8,7 @@ import { NotFoundError, ValidationError } from '@/lib/errors'
 import type { ContributionApi, UpsertContributionInput } from '@/types/api'
 
 export async function getContributionsForWeek(weekId: number): Promise<ContributionApi[]> {
+  if (!USE_NEXT_DATA_CACHE) return readContributionsForWeek(weekId)
   return getContributionsForWeekCached(weekId)()
 }
 
@@ -43,26 +45,28 @@ export async function removeContribution(playerId: number, weekId: number): Prom
   } catch {}
 }
 
+async function readContributionsForWeek(weekId: number): Promise<ContributionApi[]> {
+  const rows = await findContributionsByWeek(weekId)
+  let rank = 1
+
+  return rows.map((r, idx) => {
+    if (idx > 0 && rows[idx - 1].amount !== r.amount) rank = idx + 1
+    return {
+      id:          r.id,
+      playerId:    r.playerId,
+      playerName:  r.playerName,
+      playerAlias: r.playerAlias,
+      weekId:      r.weekId,
+      amount:      r.amount,
+      note:        r.note,
+      rank,
+    }
+  })
+}
+
 function getContributionsForWeekCached(weekId: number) {
   return unstable_cache(
-    async () => {
-      const rows = await findContributionsByWeek(weekId)
-      // Assign RANK-style ranks: ties share the same rank (e.g. 1, 2, 2, 4)
-      let rank = 1
-      return rows.map((r, idx) => {
-        if (idx > 0 && rows[idx - 1].amount !== r.amount) rank = idx + 1
-        return {
-          id:          r.id,
-          playerId:    r.playerId,
-          playerName:  r.playerName,
-          playerAlias: r.playerAlias,
-          weekId:      r.weekId,
-          amount:      r.amount,
-          note:        r.note,
-          rank,
-        }
-      })
-    },
+    () => readContributionsForWeek(weekId),
     ['contributions', String(weekId)],
     { revalidate: 60, tags: [`contributions-${weekId}`] },
   )

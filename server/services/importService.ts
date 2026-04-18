@@ -1,5 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
+import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { processPlayerImport, processScoreImport } from '@/server/engines/importProcessor'
 import {
   createImport,
@@ -22,13 +23,19 @@ import type { Import } from '@/types/domain'
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
 export async function getRecentImports(limit = 5): Promise<Import[]> {
-  const imports = await getRecentImportsCached(limit)()
+  const imports = USE_NEXT_DATA_CACHE
+    ? await getRecentImportsCached(limit)()
+    : await readRecentImports(limit)
   return imports.map((imp) => ({ ...imp, createdAt: new Date(imp.createdAt) }))
+}
+
+async function readRecentImports(limit: number): Promise<Import[]> {
+  return findRecentImports(limit)
 }
 
 function getRecentImportsCached(limit: number) {
   return unstable_cache(
-    async () => findRecentImports(limit),
+    () => readRecentImports(limit),
     ['recent-imports', String(limit)],
     { revalidate: 30, tags: ['imports'] },
   )

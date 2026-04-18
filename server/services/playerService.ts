@@ -1,5 +1,6 @@
 import 'server-only'
 import { unstable_cache, revalidateTag } from 'next/cache'
+import { USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import {
   findAllPlayers,
   findPlayerById,
@@ -57,6 +58,11 @@ const getAllPlayersFullCached = unstable_cache(
 )
 
 export async function getAllPlayers(activeOnly = true): Promise<PlayerApi[]> {
+  if (!USE_NEXT_DATA_CACHE) {
+    const players = await findAllPlayers(activeOnly)
+    return players.map(toPlayerApi)
+  }
+
   if (activeOnly) return getAllPlayersActiveCached()
   return getAllPlayersFullCached()
 }
