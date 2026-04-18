@@ -225,22 +225,38 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
                   )
                 })}
 
-                <td className="px-5 py-2 text-right tabular-nums">
-                  {kpi.daysPlayed === 0 ? (
-                    <span className="text-[var(--color-text-muted)]">—</span>
-                  ) : (
-                    <div className="flex flex-col items-end gap-0.5">
-                      <span className="font-bold text-[var(--color-text-primary)]">
-                        {formatScoreCompact(kpi.totalScore)}
-                      </span>
-                      {kpi.rawTotalScore > kpi.totalScore && (
-                        <span className="text-[0.55rem] text-[var(--color-text-muted)] tabular-nums">
-                          brut {formatScoreCompact(kpi.rawTotalScore)}
-                        </span>
+                {(() => {
+                  // Recompute total locally so edited cells reflect immediately
+                  const localTotal = kpi.dailyScores.reduce((sum, d) => {
+                    const k = `${kpi.playerId}:${d.dayOfWeek}`
+                    const localRaw = localScores.get(k)
+                    if (localRaw !== undefined) {
+                      const adj = ecoDays.has(d.dayOfWeek) && localRaw > APP_CONFIG.ecoScoreCap
+                        ? APP_CONFIG.ecoScoreCap : localRaw
+                      return sum + adj
+                    }
+                    return sum + d.adjustedScore
+                  }, 0)
+                  const hasActivity = localTotal > 0 || kpi.daysPlayed > 0
+                  return (
+                    <td className="px-5 py-2 text-right tabular-nums">
+                      {!hasActivity ? (
+                        <span className="text-[var(--color-text-muted)]">—</span>
+                      ) : (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="font-bold text-[var(--color-text-primary)]">
+                            {formatScoreCompact(localTotal)}
+                          </span>
+                          {!localScores.size && kpi.rawTotalScore > kpi.totalScore && (
+                            <span className="text-[0.55rem] text-[var(--color-text-muted)] tabular-nums">
+                              brut {formatScoreCompact(kpi.rawTotalScore)}
+                            </span>
+                          )}
+                        </div>
                       )}
-                    </div>
-                  )}
-                </td>
+                    </td>
+                  )
+                })()}
               </tr>
             ))}
           </tbody>
