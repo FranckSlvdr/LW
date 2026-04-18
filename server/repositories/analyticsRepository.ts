@@ -21,6 +21,21 @@ export async function findSnapshot(weekId: number): Promise<DashboardSnapshot | 
 }
 
 /**
+ * Returns the stored DashboardSnapshot for a week even if it is stale.
+ * Useful as a fast fallback on hosted runtimes where serving a slightly stale
+ * snapshot is better than recomputing analytics during navigation.
+ */
+export async function findStoredSnapshot(weekId: number): Promise<DashboardSnapshot | null> {
+  const rows = await db<WeekKpiSnapshotRow[]>`
+    SELECT payload, stale FROM week_kpi_snapshots
+    WHERE week_id = ${weekId}
+    LIMIT 1
+  `
+  if (!rows[0]) return null
+  return rows[0].payload as DashboardSnapshot
+}
+
+/**
  * Upserts the snapshot for a week and clears the stale flag.
  * Called after a successful recompute.
  */
