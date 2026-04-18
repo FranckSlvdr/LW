@@ -10,19 +10,21 @@ import { UnprocessableError } from '@/lib/errors'
 
 /**
  * Normalizes a player name for deduplication and comparison.
- * Removes diacritics, lowercases, strips non-alphanumeric characters.
+ * Strips Latin diacritics, lowercases, removes non-letter/digit/space chars.
+ * Non-Latin scripts (Arabic, Chinese, Cyrillic…) are preserved as-is.
  *
- * "Ñoño" → "nono"
- * "  Iron Man  " → "iron man"
+ * "Ñoño"   → "nono"
+ * "Iron Man" → "iron man"
+ * "محمد"    → "محمد"
  */
 export function normalizePlayerName(name: string): string {
   return name
     .trim()
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')  // Strip diacritics
-    .replace(/[^a-z0-9\s]/g, '')      // Keep alphanumeric + spaces
-    .replace(/\s+/g, ' ')             // Collapse multiple spaces
+    .replace(/[\u0300-\u036f]/g, '')    // Strip Latin diacritics (é→e, ñ→n…)
+    .replace(/[^\p{L}\p{N}\s]/gu, '')  // Keep Unicode letters, digits, spaces
+    .replace(/\s+/g, ' ')              // Collapse multiple spaces
     .trim()
 }
 
