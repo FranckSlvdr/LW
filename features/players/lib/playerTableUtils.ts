@@ -16,7 +16,7 @@ export interface PlayersSummary {
   unfilledLevels: number
 }
 
-export const MAX_PROFESSION_LEVEL = 10
+export const MAX_PROFESSION_LEVEL = 100
 
 export const RANK_BADGE_VARIANT: Record<PlayerRank, 'danger' | 'warning' | 'success' | 'info' | 'neutral'> = {
   R5: 'danger',

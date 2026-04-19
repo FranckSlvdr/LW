@@ -55,7 +55,7 @@ import { normalize, stddev, clamp } from '@/lib/utils'
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /** Absolute max profession level — change here if the game extends levels */
-export const MAX_PROFESSION_LEVEL = 10
+export const MAX_PROFESSION_LEVEL = 100
 
 // ─── Public interface ─────────────────────────────────────────────────────────
 
