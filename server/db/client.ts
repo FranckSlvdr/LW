@@ -92,9 +92,11 @@ function createClient(): ReturnType<typeof postgres> {
     port,
     database,
     ssl,
-    // Serverless: 1 connection per instance — Supavisor handles pooling server-side.
-    // Multiple Vercel instances × N connections each can exhaust Supabase limits fast.
-    max: process.env.VERCEL ? 1 : 10,
+    // Serverless: 2 connections per instance on Vercel (Supavisor transaction mode handles
+    // the real pool server-side, so client connections are cheap).
+    // 1 connection for main requests + 1 for after() background recomputes — prevents
+    // background analytics refreshes from blocking page-level DB queries.
+    max: process.env.VERCEL ? 2 : 10,
     // On Vercel, keep idle connections alive for the function lifetime (~15min max).
     // Short idle_timeout (20s) was causing reconnects mid-request on warm instances.
     idle_timeout: process.env.VERCEL ? 60 : 300,
