@@ -7,8 +7,8 @@ import {
   upsertTrainRun, findSelectionsByRunsWithPlayers, findSelectionsByRuns,
   replaceSelectionsForRun, findTrainRunsByWeeks,
 } from '@/server/repositories/trainRepository'
-import { findAllPlayers } from '@/server/repositories/playerRepository'
-import { findAllWeeks, findWeekById } from '@/server/repositories/weekRepository'
+import { findAllPlayers, findPlayerNamesByIds } from '@/server/repositories/playerRepository'
+import { findAllWeeks, findWeekById, findWeekLabelsByIds } from '@/server/repositories/weekRepository'
 import { findTopDsScorers } from '@/server/repositories/desertStormRepository'
 import { findTopContributors } from '@/server/repositories/contributionRepository'
 import { findTopVsScorers } from '@/server/repositories/scoreRepository'
@@ -62,26 +62,28 @@ function toSettingsApi(s: TrainSettings): TrainSettingsApi {
 // ─── Runs ─────────────────────────────────────────────────────────────────────
 
 export async function getTrainRunsForWeek(weekId: number): Promise<TrainRunApi[]> {
-  if (IS_VERCEL_RUNTIME) return getTrainRunsForWeekCached(weekId)()
+  if (IS_VERCEL_RUNTIME) return getTrainRunsForWeekCachedFast(weekId)()
   if (!USE_NEXT_DATA_CACHE) return readTrainRunsForWeek(weekId)
-  return getTrainRunsForWeekCached(weekId)()
+  return getTrainRunsForWeekCachedFast(weekId)()
 }
 
 async function readTrainRunsForWeek(weekId: number): Promise<TrainRunApi[]> {
   const done = perf('trainService.getTrainRunsForWeek')
-  const [week, runs, players] = await Promise.all([
+  const [week, runs] = await Promise.all([
     findWeekById(weekId),
     findTrainRunsByWeek(weekId),
-    findAllPlayers(),
   ])
   if (!week) throw new NotFoundError('Week', weekId)
 
+  const excludedPlayers = await loadExcludedPlayerNames(runs)
   const selectionsByRunId = await findSelectionsByRunsWithPlayers(runs.map((r) => r.id))
-  const result = runs.map((run) => enrichRun(run, week.label, players, selectionsByRunId))
+  const result = runs.map((run) => enrichRunFast(run, week.label, excludedPlayers, selectionsByRunId))
   done()
   return result
 }
 
+// Legacy path kept as a fallback while the slimmer cached path is validated.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getTrainRunsForWeekCached(weekId: number) {
   return unstable_cache(
     async () => {
@@ -104,11 +106,13 @@ function getTrainRunsForWeekCached(weekId: number) {
 }
 
 export async function getRecentTrainHistory(limit = 20): Promise<TrainRunApi[]> {
-  if (IS_VERCEL_RUNTIME) return getRecentTrainHistoryCached(limit)()
-  if (!USE_NEXT_DATA_CACHE) return readRecentTrainHistory(limit)
-  return getRecentTrainHistoryCached(limit)()
+  if (IS_VERCEL_RUNTIME) return getRecentTrainHistoryCachedFast(limit)()
+  if (!USE_NEXT_DATA_CACHE) return readRecentTrainHistoryFast(limit)
+  return getRecentTrainHistoryCachedFast(limit)()
 }
 
+// Legacy path kept as a fallback while the slimmer cached path is validated.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function readRecentTrainHistory(limit: number): Promise<TrainRunApi[]> {
   const done = perf('trainService.getRecentTrainHistory')
   const [runs, weeks, players] = await Promise.all([
@@ -125,6 +129,8 @@ async function readRecentTrainHistory(limit: number): Promise<TrainRunApi[]> {
   return result
 }
 
+// Legacy path kept as a fallback while the slimmer cached path is validated.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getRecentTrainHistoryCached(limit: number) {
   return unstable_cache(
     async () => {
@@ -146,6 +152,114 @@ function getRecentTrainHistoryCached(limit: number) {
     ['train-history', String(limit)],
     { revalidate: 60, tags: ['train-history', 'train-runs'] },
   )
+}
+
+async function readRecentTrainHistoryFast(limit: number): Promise<TrainRunApi[]> {
+  const done = perf('trainService.getRecentTrainHistory')
+  const runs = await findRecentTrainRuns(limit)
+  const [weekLabels, excludedPlayers] = await Promise.all([
+    findWeekLabelsByIds([...new Set(runs.map((run) => run.weekId))]),
+    loadExcludedPlayerNames(runs),
+  ])
+  const selectionsByRunId = await findSelectionsByRunsWithPlayers(runs.map((r) => r.id))
+  const result = runs.map((run) =>
+    enrichRunFast(run, weekLabels.get(run.weekId) ?? `Week ${run.weekId}`, excludedPlayers, selectionsByRunId),
+  )
+  done()
+  return result
+}
+
+function getRecentTrainHistoryCachedFast(limit: number) {
+  return unstable_cache(
+    async () => {
+      const done = perf('trainService.getRecentTrainHistory')
+      const runs = await findRecentTrainRuns(limit)
+      const [weekLabels, excludedPlayers] = await Promise.all([
+        findWeekLabelsByIds([...new Set(runs.map((run) => run.weekId))]),
+        loadExcludedPlayerNames(runs),
+      ])
+      const selectionsByRunId = await findSelectionsByRunsWithPlayers(runs.map((r) => r.id))
+      const result = runs.map((run) =>
+        enrichRunFast(run, weekLabels.get(run.weekId) ?? `Week ${run.weekId}`, excludedPlayers, selectionsByRunId),
+      )
+      done()
+      return result
+    },
+    ['train-history-fast', String(limit)],
+    { revalidate: 60, tags: ['train-history', 'train-runs'] },
+  )
+}
+
+function getTrainRunsForWeekCachedFast(weekId: number) {
+  return unstable_cache(
+    async () => {
+      const done = perf('trainService.getTrainRunsForWeek')
+      const [week, runs] = await Promise.all([
+        findWeekById(weekId),
+        findTrainRunsByWeek(weekId),
+      ])
+      if (!week) throw new NotFoundError('Week', weekId)
+
+      const excludedPlayers = await loadExcludedPlayerNames(runs)
+      const selectionsByRunId = await findSelectionsByRunsWithPlayers(runs.map((r) => r.id))
+      const result = runs.map((run) =>
+        enrichRunFast(run, week.label, excludedPlayers, selectionsByRunId),
+      )
+      done()
+      return result
+    },
+    ['train-runs-fast', String(weekId)],
+    { revalidate: 60, tags: ['train-runs', `train-runs-${weekId}`] },
+  )
+}
+
+async function loadExcludedPlayerNames(
+  runs: TrainRun[],
+): Promise<Map<number, { name: string; alias: string | null }>> {
+  const excludedIds = [...new Set(
+    runs.flatMap((run) => run.excludedPlayerIds.map((entry) => entry.playerId)),
+  )]
+
+  return findPlayerNamesByIds(excludedIds)
+}
+
+function getPlayerDisplayName(
+  playerLookup: Map<number, { name: string; alias: string | null }>,
+  playerId: number,
+): string {
+  return playerLookup.get(playerId)?.name ?? `Player ${playerId}`
+}
+
+function enrichRunFast(
+  run: TrainRun,
+  weekLabel: string,
+  excludedPlayers: Map<number, { name: string; alias: string | null }>,
+  selectionsByRunId: Map<number, Array<{ playerId: number; position: number; selectionReason: SelectionReason; playerName: string; playerAlias: string | null }>>,
+): TrainRunApi {
+  const selections = selectionsByRunId.get(run.id) ?? []
+  const excludedWithNames = run.excludedPlayerIds.map((entry) => ({
+    playerId: entry.playerId,
+    playerName: getPlayerDisplayName(excludedPlayers, entry.playerId),
+    weeksAgo: entry.weeksAgo,
+  }))
+
+  return {
+    id:            run.id,
+    weekId:        run.weekId,
+    weekLabel,
+    trainDay:      run.trainDay,
+    trainDayLabel: DAY_LABELS[run.trainDay] ?? `Jour ${run.trainDay}`,
+    createdAt:     run.createdAt.toISOString(),
+    settings:      run.settingsSnapshot as TrainRunApi['settings'],
+    excludedPlayers: excludedWithNames,
+    selections: selections.map((selection) => ({
+      position:        selection.position,
+      playerId:        selection.playerId,
+      playerName:      selection.playerName,
+      playerAlias:     selection.playerAlias,
+      selectionReason: selection.selectionReason,
+    })),
+  }
 }
 
 /**

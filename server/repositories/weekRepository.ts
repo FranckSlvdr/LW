@@ -56,6 +56,18 @@ export async function findLastTwoWeeks(): Promise<[Week, Week] | [Week] | []> {
   return rows.map(toWeek) as [Week, Week] | [Week] | []
 }
 
+export async function findWeekLabelsByIds(weekIds: number[]): Promise<Map<number, string>> {
+  if (weekIds.length === 0) return new Map()
+
+  const rows = await db<Array<{ id: number; label: string }>>`
+    SELECT id, label
+    FROM weeks
+    WHERE id = ANY(${weekIds})
+  `
+
+  return new Map(rows.map((row) => [row.id, row.label]))
+}
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export async function createWeek(input: CreateWeekInput): Promise<Week> {

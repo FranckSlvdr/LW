@@ -10,6 +10,8 @@ import {
 } from '@/lib/rateLimit'
 import { APP_CONFIG } from '@/config/app.config'
 import { requireAuth } from '@/server/security/authGuard'
+import { refreshWeekAnalytics } from '@/server/services/analyticsService'
+import { scheduleSingletonAfter } from '@/server/lib/scheduleSingletonAfter'
 import {
   getRecentImports,
   importPlayersFromCsv,
@@ -71,6 +73,11 @@ export async function POST(request: Request) {
     }
 
     const result = await importScoresFromCsv(csvContent, filename, weekId)
+    scheduleSingletonAfter(
+      `analytics-refresh:${weekId}`,
+      () => refreshWeekAnalytics(weekId),
+      { source: 'imports-route', weekId, filename },
+    )
     return created(result)
   } catch (err) {
     return fail(err)

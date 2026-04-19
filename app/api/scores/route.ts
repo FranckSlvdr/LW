@@ -8,7 +8,11 @@ import {
   rateLimitResponse,
 } from '@/lib/rateLimit'
 import { requireAuth } from '@/server/security/authGuard'
+import { refreshWeekAnalytics } from '@/server/services/analyticsService'
+import { scheduleSingletonAfter } from '@/server/lib/scheduleSingletonAfter'
 import { getScoresByWeek, upsertBulkScores } from '@/server/services/scoreService'
+
+export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,6 +44,18 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const count = await upsertBulkScores(body)
+    const weekId = typeof body?.weekId === 'number'
+      ? body.weekId
+      : Number(body?.weekId)
+
+    if (count > 0 && Number.isInteger(weekId) && weekId > 0) {
+      scheduleSingletonAfter(
+        `analytics-refresh:${weekId}`,
+        () => refreshWeekAnalytics(weekId),
+        { source: 'scores-route', weekId },
+      )
+    }
+
     return created({ count })
   } catch (err) {
     return fail(err)

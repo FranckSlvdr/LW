@@ -1,11 +1,11 @@
 import 'server-only'
-import { unstable_cache } from 'next/cache'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { findAllPlayers } from '@/server/repositories/playerRepository'
 import { findScoresByWeek } from '@/server/repositories/scoreRepository'
 import { findWeekById, findAllWeeks } from '@/server/repositories/weekRepository'
 import { findVsDaysByWeekAsMap } from '@/server/repositories/vsDayRepository'
-import { findSnapshot, saveSnapshot } from '@/server/repositories/analyticsRepository'
+import { findSnapshot, findStoredSnapshot, saveSnapshot } from '@/server/repositories/analyticsRepository'
 import { computeKpis, getTopPlayers, getFlopPlayers } from '@/server/engines/kpiEngine'
 import { generateInsights } from '@/server/engines/insightEngine'
 import { NotFoundError } from '@/lib/errors'
@@ -13,6 +13,7 @@ import { APP_CONFIG } from '@/config/app.config'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import { logger } from '@/lib/logger'
 import { perf } from '@/lib/perf'
+import { scheduleSingletonAfter } from '@/server/lib/scheduleSingletonAfter'
 import type { PlayerKpi, WeekKpiSummary, WeekDelta, Insight, DashboardSnapshot, WeekRankStatsApi } from '@/types/api'
 
 // ─── Public return type ───────────────────────────────────────────────────────
@@ -254,9 +255,70 @@ function getDashboardCoreForWeek(weekId: number) {
   )
 }
 
+function scheduleDashboardSnapshotRefresh(weekId: number): void {
+  const scheduled = scheduleSingletonAfter(
+    `dashboard-snapshot:${weekId}`,
+    async () => {
+      const startedAt = Date.now()
+      logger.info('Dashboard snapshot background recompute started', { weekId })
+
+      const fresh = await computeDashboardCore(weekId)
+      await saveSnapshot(weekId, fresh)
+
+      try {
+        revalidateTag(`week-kpi-${weekId}`, 'max')
+      } catch {}
+
+      logger.info('Dashboard snapshot background recompute completed', {
+        weekId,
+        ms: Date.now() - startedAt,
+        players: fresh.allKpis.length,
+      })
+    },
+    { weekId },
+  )
+
+  logger.warn('Serving stale dashboard snapshot on Vercel', {
+    weekId,
+    refresh: scheduled ? 'scheduled' : 'already-pending',
+  })
+}
+
 async function readDashboardCoreForWeek(weekId: number): Promise<DashboardSnapshot> {
   if (IS_VERCEL_RUNTIME) {
-    return getDashboardCoreForWeek(weekId)()
+    const startedAt = Date.now()
+
+    const snapshot = await findSnapshot(weekId)
+    if (snapshot) {
+      logger.info('Dashboard snapshot resolved from database', {
+        weekId,
+        source: 'fresh',
+        ms: Date.now() - startedAt,
+      })
+      return snapshot
+    }
+
+    const storedSnapshot = await findStoredSnapshot(weekId)
+    if (storedSnapshot) {
+      scheduleDashboardSnapshotRefresh(weekId)
+      return storedSnapshot
+    }
+
+    const fresh = await computeDashboardCore(weekId)
+
+    try {
+      await saveSnapshot(weekId, fresh)
+    } catch (err) {
+      logger.error('Failed to save dashboard snapshot', { weekId, err: String(err) })
+    }
+
+    logger.info('Dashboard snapshot computed on demand', {
+      weekId,
+      source: 'cold-miss',
+      ms: Date.now() - startedAt,
+      players: fresh.allKpis.length,
+    })
+    return fresh
   }
 
   if (!USE_NEXT_DATA_CACHE) {

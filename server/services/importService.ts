@@ -200,15 +200,20 @@ export async function importScoresFromCsv(
       }
     }
 
+    const unresolvedByRowNumber = new Map(
+      unresolvedErrors.map((entry) => [entry.rowNumber, entry.error.message]),
+    )
+
     await bulkInsertImportRows([
       ...result.valid.map((r) => ({
         importId: importRecord.id,
         rowNumber: r.rowNumber,
         rawDataJson: r.raw,
         normalizedDataJson: r.normalized as unknown as Record<string, unknown>,
-        status: unresolvedErrors.some((e) => e.rowNumber === r.rowNumber)
+        status: unresolvedByRowNumber.has(r.rowNumber)
           ? ('error' as const)
           : ('imported' as const),
+        errorMessage: unresolvedByRowNumber.get(r.rowNumber),
       })),
       ...result.skipped.map((r) => ({
         importId: importRecord.id,
@@ -246,7 +251,7 @@ export async function importScoresFromCsv(
       importId: importRecord.id,
       status,
       rowsImported: imported,
-      rowsSkipped: result.summary.skipped,
+      rowsSkipped: result.summary.skipped + unresolvedErrors.length,
       errors: allErrors.map((e) => e.error),
     }
   } catch (err) {

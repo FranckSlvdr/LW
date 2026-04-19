@@ -82,6 +82,20 @@ export async function findPlayerNameMap(): Promise<Map<string, number>> {
   return new Map(rows.map((r) => [r.normalized_name, r.id]))
 }
 
+export async function findPlayerNamesByIds(
+  playerIds: number[],
+): Promise<Map<number, { name: string; alias: string | null }>> {
+  if (playerIds.length === 0) return new Map()
+
+  const rows = await db<Array<{ id: number; name: string; alias: string | null }>>`
+    SELECT id, name, alias
+    FROM players
+    WHERE id = ANY(${playerIds})
+  `
+
+  return new Map(rows.map((row) => [row.id, { name: row.name, alias: row.alias }]))
+}
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export async function createPlayer(input: CreatePlayerInput): Promise<Player> {
