@@ -21,6 +21,18 @@ export async function findSnapshot(weekId: number): Promise<DashboardSnapshot | 
 }
 
 /**
+ * Returns true if the snapshot for a week exists but is marked stale
+ * (i.e. an import or edit happened and the recompute is pending).
+ * Used to show a "refreshing" indicator on the VS page.
+ */
+export async function isSnapshotStale(weekId: number): Promise<boolean> {
+  const rows = await db<{ stale: boolean }[]>`
+    SELECT stale FROM week_kpi_snapshots WHERE week_id = ${weekId} LIMIT 1
+  `
+  return rows[0]?.stale === true
+}
+
+/**
  * Returns the stored DashboardSnapshot for a week even if it is stale.
  * Useful as a fast fallback on hosted runtimes where serving a slightly stale
  * snapshot is better than recomputing analytics during navigation.

@@ -8,6 +8,7 @@ import { EcoDayBar } from '@/features/vs/components/EcoDayBar'
 import { ExportButton } from '@/components/ui/ExportButton'
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton'
 import { getDashboardData } from '@/server/services/kpiService'
+import { isSnapshotStale } from '@/server/repositories/analyticsRepository'
 import { getVsDaysForWeek } from '@/server/services/vsDayService'
 import { getAllWeeks } from '@/server/services/weekService'
 import { getAllPlayers } from '@/server/services/playerService'
@@ -41,10 +42,11 @@ async function VsContent({
 }) {
   const done = perf('VsContent')
 
-  const [players, dashboardData, vsDays] = await Promise.all([
+  const [players, dashboardData, vsDays, snapshotStale] = await Promise.all([
     getAllPlayers(true),
     getDashboardData(weekId),
     getVsDaysForWeek(weekId),
+    isSnapshotStale(weekId),
   ])
   done()
 
@@ -60,6 +62,7 @@ async function VsContent({
             canEdit={canEco}
             disabledReason={manualEditDisabledReason ?? undefined}
           />
+          {snapshotStale && <StaleDataBanner />}
         </div>
       </main>
     )
@@ -84,6 +87,8 @@ async function VsContent({
   return (
     <main className="flex-1 overflow-y-auto">
       <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+
+        {snapshotStale && <StaleDataBanner />}
 
         <div className="flex items-center justify-between">
           <EcoDayBar
@@ -124,6 +129,20 @@ async function VsContent({
 
       </div>
     </main>
+  )
+}
+
+// ─── Stale data banner ────────────────────────────────────────────────────────
+
+function StaleDataBanner() {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/8 text-sm text-[var(--color-warning)]">
+      <span className="shrink-0 text-base">⏳</span>
+      <span>
+        Les scores viennent d&apos;être importés ou modifiés — les données sont en cours de recalcul.
+        <strong className="ml-1">Rechargez la page dans quelques secondes</strong> pour voir les résultats à jour.
+      </span>
+    </div>
   )
 }
 
