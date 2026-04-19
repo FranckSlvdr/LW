@@ -222,7 +222,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
     if (!editingProfession || editingProfession.id !== playerId) return
 
     const { key, level: rawLevel } = editingProfession
-    setEditingProf(null)
+    setEditingProf(null) // close form immediately; guards above prevent double-fire
 
     const level = Number(rawLevel)
     if (!key || Number.isNaN(level) || level < 1 || level > MAX_PROFESSION_LEVEL) return
@@ -485,7 +485,6 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                     {canManage && editingProfession?.id === player.id ? (
                       <span className="inline-flex items-center gap-1">
                         <select
-                          autoFocus
                           value={editingProfession.key}
                           onChange={(e) => setEditingProf({ ...editingProfession, key: e.target.value })}
                           className="text-xs px-1 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
@@ -496,18 +495,20 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                         </select>
                         <input
                           type="number"
+                          autoFocus
                           min={1}
                           max={MAX_PROFESSION_LEVEL}
                           value={editingProfession.level}
                           onChange={(e) => setEditingProf({ ...editingProfession, level: e.target.value })}
+                          onBlur={() => void handleSaveProfession(player.id)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') void handleSaveProfession(player.id)
                             if (e.key === 'Escape') setEditingProf(null)
                           }}
                           className="w-10 text-xs px-1 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
                         />
-                        <button onClick={() => void handleSaveProfession(player.id)} className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-white">{CHECK_MARK}</button>
-                        <button onClick={() => setEditingProf(null)} className="text-xs px-1.5 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)]">{CROSS_MARK}</button>
+                        <button type="button" onClick={() => void handleSaveProfession(player.id)} className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-white">{CHECK_MARK}</button>
+                        <button type="button" onClick={() => setEditingProf(null)} className="text-xs px-1.5 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)]">{CROSS_MARK}</button>
                       </span>
                     ) : player.professionKey ? (
                       <span
