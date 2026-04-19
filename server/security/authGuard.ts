@@ -1,8 +1,9 @@
 import 'server-only'
 
 import { cache } from 'react'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { UnauthorizedError } from '@/lib/errors'
+import { logger } from '@/lib/logger'
 import { findUserWithTokenVersion } from '@/server/repositories/userRepository'
 import { requirePermission } from '@/server/security/permissions'
 import {
@@ -36,6 +37,21 @@ export const getSessionUser = cache(async (): Promise<AuthUser | null> => {
     name: result.user.name,
     email: result.user.email,
   }
+
+  const requestHeaders = await headers()
+  const ipAddress =
+    requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    requestHeaders.get('x-real-ip') ??
+    null
+
+  logger.info('Authenticated session resolved', {
+    userId: currentUser.id,
+    userEmail: currentUser.email,
+    userRole: currentUser.role,
+    host: requestHeaders.get('host'),
+    requestId: requestHeaders.get('x-vercel-id'),
+    ipAddress,
+  })
 
   return currentUser
 })

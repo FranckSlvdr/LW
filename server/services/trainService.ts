@@ -14,6 +14,7 @@ import { findTopContributors } from '@/server/repositories/contributionRepositor
 import { findTopVsScorers } from '@/server/repositories/scoreRepository'
 import { runTrainSelection } from '@/server/engines/trainEngine'
 import { NotFoundError } from '@/lib/errors'
+import { logger } from '@/lib/logger'
 import { perf } from '@/lib/perf'
 import type { Player, TrainSettings, TrainDay, TrainRun, SelectionReason } from '@/types/domain'
 import type { TrainSettingsApi, TrainRunApi, UpdateTrainSettingsInput, TriggerTrainRunInput } from '@/types/api'
@@ -62,9 +63,22 @@ function toSettingsApi(s: TrainSettings): TrainSettingsApi {
 // ─── Runs ─────────────────────────────────────────────────────────────────────
 
 export async function getTrainRunsForWeek(weekId: number): Promise<TrainRunApi[]> {
-  if (IS_VERCEL_RUNTIME) return getTrainRunsForWeekCachedFast(weekId)()
-  if (!USE_NEXT_DATA_CACHE) return readTrainRunsForWeek(weekId)
-  return getTrainRunsForWeekCachedFast(weekId)()
+  const startedAt = Date.now()
+  const runs = IS_VERCEL_RUNTIME
+    ? await getTrainRunsForWeekCachedFast(weekId)()
+    : !USE_NEXT_DATA_CACHE
+      ? await readTrainRunsForWeek(weekId)
+      : await getTrainRunsForWeekCachedFast(weekId)()
+
+  if (IS_VERCEL_RUNTIME) {
+    logger.info('Train runs for week ready', {
+      weekId,
+      runs: runs.length,
+      ms: Date.now() - startedAt,
+    })
+  }
+
+  return runs
 }
 
 async function readTrainRunsForWeek(weekId: number): Promise<TrainRunApi[]> {
@@ -106,9 +120,22 @@ function getTrainRunsForWeekCached(weekId: number) {
 }
 
 export async function getRecentTrainHistory(limit = 20): Promise<TrainRunApi[]> {
-  if (IS_VERCEL_RUNTIME) return getRecentTrainHistoryCachedFast(limit)()
-  if (!USE_NEXT_DATA_CACHE) return readRecentTrainHistoryFast(limit)
-  return getRecentTrainHistoryCachedFast(limit)()
+  const startedAt = Date.now()
+  const history = IS_VERCEL_RUNTIME
+    ? await getRecentTrainHistoryCachedFast(limit)()
+    : !USE_NEXT_DATA_CACHE
+      ? await readRecentTrainHistoryFast(limit)
+      : await getRecentTrainHistoryCachedFast(limit)()
+
+  if (IS_VERCEL_RUNTIME) {
+    logger.info('Recent train history ready', {
+      limit,
+      runs: history.length,
+      ms: Date.now() - startedAt,
+    })
+  }
+
+  return history
 }
 
 // Legacy path kept as a fallback while the slimmer cached path is validated.

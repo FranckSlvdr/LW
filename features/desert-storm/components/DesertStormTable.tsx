@@ -1,5 +1,8 @@
+'use client'
+
 import { Card, CardHeader } from '@/components/ui/Card'
 import { formatScore } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n/client'
 import type { DesertStormScoreApi } from '@/types/api'
 
 interface DesertStormTableProps {
@@ -14,13 +17,29 @@ const MEDAL: Record<number, { bg: string; text: string; ring: string }> = {
 }
 
 export function DesertStormTable({ scores, includeDsTop2 = false }: DesertStormTableProps) {
+  const { locale } = useI18n()
+  const isFrench = locale === 'fr'
+  const t = {
+    emptyTitle: isFrench ? 'Aucun score Desert Storm enregistre' : 'No Desert Storm score recorded',
+    emptyHint: isFrench ? 'Utilisez le formulaire ci-dessus pour saisir les scores' : 'Use the form above to enter scores',
+    title: 'Desert Storm',
+    subtitle: isFrench
+      ? `${scores.length} joueur${scores.length > 1 ? 's' : ''} - semaine en cours`
+      : `${scores.length} player${scores.length > 1 ? 's' : ''} - current week`,
+    rank: isFrench ? 'Rang' : 'Rank',
+    player: isFrench ? 'Joueur' : 'Player',
+    score: isFrench ? 'Score' : 'Score',
+    points: isFrench ? 'Points' : 'Points',
+    selectedTrain: isFrench ? 'Selected for train' : 'Selected for train',
+  }
+
   if (scores.length === 0) {
     return (
       <Card>
         <div className="py-12 text-center space-y-2">
-          <p className="text-3xl opacity-30">🌪️</p>
-          <p className="text-sm font-medium text-[var(--color-text-secondary)]">Aucun score Desert Storm enregistré</p>
-          <p className="text-xs text-[var(--color-text-muted)]">Utilisez le formulaire ci-dessus pour saisir les scores</p>
+          <p className="text-3xl opacity-30">{'\u{1F32A}\uFE0F'}</p>
+          <p className="text-sm font-medium text-[var(--color-text-secondary)]">{t.emptyTitle}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">{t.emptyHint}</p>
         </div>
       </Card>
     )
@@ -31,50 +50,49 @@ export function DesertStormTable({ scores, includeDsTop2 = false }: DesertStormT
   return (
     <Card padding="none">
       <div className="p-5 pb-3">
-        <CardHeader
-          title="Classement Desert Storm"
-          subtitle={`${scores.length} joueur${scores.length > 1 ? 's' : ''} · semaine en cours`}
-        />
+        <CardHeader title={t.title} subtitle={t.subtitle} />
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-y border-[var(--color-border)] bg-[var(--color-surface-raised)]/40">
-              <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs w-16">Rang</th>
-              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Joueur</th>
-              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Score</th>
-              <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">Points</th>
+              <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs w-16">{t.rank}</th>
+              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">{t.player}</th>
+              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">{t.score}</th>
+              <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">{t.points}</th>
             </tr>
           </thead>
           <tbody>
-            {scores.map((s) => {
-              const medal = MEDAL[s.rank]
-              const ratio = maxScore > 0 ? s.score / maxScore : 0
+            {scores.map((score) => {
+              const medal = MEDAL[score.rank]
+              const ratio = maxScore > 0 ? score.score / maxScore : 0
 
               return (
                 <tr
-                  key={s.id}
+                  key={score.id}
                   className={[
                     'border-b border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-raised)] transition-colors',
-                    s.rank <= 2 ? 'bg-[var(--color-surface-raised)]/20' : '',
+                    score.rank <= 2 ? 'bg-[var(--color-surface-raised)]/20' : '',
                   ].join(' ')}
                 >
                   <td className="px-5 py-3 text-center">
-                    <span className={[
-                      'inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold',
-                      medal ? `${medal.bg} ${medal.text} ${medal.ring}` : 'bg-[var(--color-surface-raised)] text-[var(--color-text-muted)]',
-                    ].join(' ')}>
-                      {s.rank}
+                    <span
+                      className={[
+                        'inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold',
+                        medal ? `${medal.bg} ${medal.text} ${medal.ring}` : 'bg-[var(--color-surface-raised)] text-[var(--color-text-muted)]',
+                      ].join(' ')}
+                    >
+                      {score.rank}
                     </span>
                   </td>
                   <td className="px-5 py-3">
-                    <p className="font-medium text-[var(--color-text-primary)]">{s.playerName}</p>
-                    {s.playerAlias && (
-                      <p className="text-xs text-[var(--color-text-muted)]">{s.playerAlias}</p>
+                    <p className="font-medium text-[var(--color-text-primary)]">{score.playerName}</p>
+                    {score.playerAlias && (
+                      <p className="text-xs text-[var(--color-text-muted)]">{score.playerAlias}</p>
                     )}
-                    {includeDsTop2 && s.rank <= 2 && (
-                      <span className="text-[0.6rem] text-[var(--color-accent)] font-semibold">⭐ Sélectionné train</span>
+                    {includeDsTop2 && score.rank <= 2 && (
+                      <span className="text-[0.6rem] text-[var(--color-accent)] font-semibold">{'\u2B50'} {t.selectedTrain}</span>
                     )}
                   </td>
                   <td className="px-5 py-3">
@@ -91,7 +109,7 @@ export function DesertStormTable({ scores, includeDsTop2 = false }: DesertStormT
                     </div>
                   </td>
                   <td className="px-5 py-3 text-right font-bold text-[var(--color-text-primary)] tabular-nums">
-                    {formatScore(s.score)}
+                    {formatScore(score.score)}
                   </td>
                 </tr>
               )

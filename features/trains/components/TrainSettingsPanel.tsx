@@ -10,8 +10,9 @@ interface TrainSettingsPanelProps {
 }
 
 export function TrainSettingsPanel({ settings: initial }: TrainSettingsPanelProps) {
-  const { dict }            = useI18n()
+  const { dict, locale }    = useI18n()
   const t                   = dict.trains
+  const isFrench            = locale === 'fr'
   const [s, setS]           = useState(initial)
   const [status, setStatus] = useState<'idle' | 'loading' | 'saved' | 'error'>('idle')
 
@@ -23,7 +24,7 @@ export function TrainSettingsPanel({ settings: initial }: TrainSettingsPanelProp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(s),
       })
-      if (!res.ok) throw new Error('Erreur')
+      if (!res.ok) throw new Error(isFrench ? 'Erreur' : 'Error')
       const data = await res.json().catch(() => ({}))
       if (data?.data) setS(data.data)
       setStatus('saved')

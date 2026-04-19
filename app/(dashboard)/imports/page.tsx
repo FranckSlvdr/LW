@@ -9,8 +9,10 @@ import { getRecentImports } from '@/server/services/importService'
 import { getAllWeeks } from '@/server/services/weekService'
 import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { getLocale, getDict } from '@/lib/i18n/server'
+import { getImportsMessages } from '@/features/imports/messages'
 import type { WeekApi } from '@/types/api'
 import type { Dictionary } from '@/lib/i18n/types'
+
 export const maxDuration = 60
 
 async function ImportsContent({
@@ -25,17 +27,18 @@ async function ImportsContent({
   dict: Dictionary
 }) {
   const imports = await getRecentImports(50)
+  const messages = getImportsMessages(locale === 'fr' ? 'fr' : 'en')
 
   const exportRows = imports.map((imp) => ({
-    'Date':      imp.createdAt.toISOString().split('T')[0],
-    'Heure':     imp.createdAt.toISOString().split('T')[1]?.slice(0, 5) ?? '',
-    'Type':      imp.importType,
-    'Fichier':   imp.filename ?? '',
-    'Statut':    imp.status,
-    'Total':     imp.rowsTotal,
-    'Importées': imp.rowsImported,
-    'Ignorées':  imp.rowsSkipped,
-    'Par':       imp.importedBy ?? '',
+    [messages.exports.columns.date]: imp.createdAt.toISOString().split('T')[0],
+    [messages.exports.columns.time]: imp.createdAt.toISOString().split('T')[1]?.slice(0, 5) ?? '',
+    [messages.exports.columns.type]: imp.importType,
+    [messages.exports.columns.file]: imp.filename ?? '',
+    [messages.exports.columns.status]: imp.status,
+    [messages.exports.columns.total]: imp.rowsTotal,
+    [messages.exports.columns.imported]: imp.rowsImported,
+    [messages.exports.columns.skipped]: imp.rowsSkipped,
+    [messages.exports.columns.by]: imp.importedBy ?? '',
   }))
 
   return (
@@ -44,7 +47,11 @@ async function ImportsContent({
         {canImport && <OcrImporter weeks={weeks} />}
         {canImport && <ImportUploader weeks={weeks} />}
         <div className="flex justify-end">
-          <ExportButton rows={exportRows} filename="imports-historique" sheetName="Imports" />
+          <ExportButton
+            rows={exportRows}
+            filename={messages.exports.filename}
+            sheetName={messages.exports.sheetName}
+          />
         </div>
         <ImportsHistory imports={imports} locale={locale} dict={dict.imports} />
       </div>
@@ -71,7 +78,7 @@ export default async function ImportsPage() {
     getSessionUser(),
   ])
   const canImport = user ? hasPermission(user.role, 'scores:import') : false
-  const dict      = await getDict(locale)
+  const dict = await getDict(locale)
 
   return (
     <>

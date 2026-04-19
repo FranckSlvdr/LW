@@ -1,21 +1,25 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useI18n } from '@/lib/i18n/client'
+import { getAuthMessages } from '@/app/auth/messages'
 
 export default function AcceptInvitePage() {
-  const [password,  setPassword]  = useState('')
-  const [confirm,   setConfirm]   = useState('')
-  const [loading,   setLoading]   = useState(false)
-  const [error,     setError]     = useState<string | null>(null)
-  const router       = useRouter()
+  const { locale } = useI18n()
+  const t = getAuthMessages(locale).acceptInvite
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const token        = searchParams.get('token') ?? ''
+  const token = searchParams.get('token') ?? ''
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (password !== confirm) {
-      setError('Les mots de passe ne correspondent pas.')
+      setError(t.mismatch)
       return
     }
     setLoading(true)
@@ -23,18 +27,18 @@ export default function AcceptInvitePage() {
 
     try {
       const res = await fetch('/api/auth/accept-invite', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ token, password }),
+        body: JSON.stringify({ token, password }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error?.message ?? 'Lien invalide ou expiré.')
+        throw new Error(data?.error?.message ?? t.invalidLink)
       }
       router.push('/dashboard')
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+      setError(err instanceof Error ? err.message : t.unknownError)
     } finally {
       setLoading(false)
     }
@@ -43,7 +47,7 @@ export default function AcceptInvitePage() {
   if (!token) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-[var(--color-bg-base)] px-4">
-        <p className="text-[var(--color-danger)]">Lien d&apos;invitation invalide.</p>
+        <p className="text-[var(--color-danger)]">{t.invalidInvitation}</p>
       </main>
     )
   }
@@ -51,10 +55,9 @@ export default function AcceptInvitePage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-[var(--color-bg-base)] px-4">
       <div className="w-full max-w-sm space-y-6">
-
         <div className="text-center space-y-1">
-          <p className="text-2xl font-bold text-[var(--color-text-primary)]">Créer votre compte</p>
-          <p className="text-sm text-[var(--color-text-muted)]">Choisissez un mot de passe (min. 12 caractères)</p>
+          <p className="text-2xl font-bold text-[var(--color-text-primary)]">{t.title}</p>
+          <p className="text-sm text-[var(--color-text-muted)]">{t.subtitle}</p>
         </div>
 
         <form
@@ -62,7 +65,7 @@ export default function AcceptInvitePage() {
           className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4"
         >
           <div>
-            <label className="label-xs block mb-1.5">Mot de passe</label>
+            <label className="label-xs block mb-1.5">{t.password}</label>
             <input
               type="password"
               value={password}
@@ -74,7 +77,7 @@ export default function AcceptInvitePage() {
             />
           </div>
           <div>
-            <label className="label-xs block mb-1.5">Confirmer le mot de passe</label>
+            <label className="label-xs block mb-1.5">{t.confirmPassword}</label>
             <input
               type="password"
               value={confirm}
@@ -92,10 +95,9 @@ export default function AcceptInvitePage() {
             disabled={loading || password.length < 12 || !confirm}
             className="w-full py-2.5 text-sm font-semibold bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-40"
           >
-            {loading ? 'Création…' : 'Créer mon compte'}
+            {loading ? t.loading : t.submit}
           </button>
         </form>
-
       </div>
     </main>
   )

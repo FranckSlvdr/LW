@@ -3,6 +3,7 @@ import { buildSessionCookie } from '@/server/security/authGuard'
 import { insertAuditLog } from '@/server/repositories/auditRepository'
 import { ok, fail } from '@/lib/apiResponse'
 import { UnauthorizedError } from '@/lib/errors'
+import { logger } from '@/lib/logger'
 import {
   AUTH_RATE_LIMIT,
   buildRateLimitIdentifier,
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     const user = await validateCredentials(email, password)
 
     if (!user) {
+      logger.warn('Login failed', { email, ipAddress: ip })
       await insertAuditLog({
         entityType: 'user',
         action: 'LOGIN_FAILED',
@@ -58,6 +60,13 @@ export async function POST(request: Request) {
       userEmail: user.email,
       ipAddress: ip,
     }).catch(() => {})
+
+    logger.info('Login succeeded', {
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      ipAddress: ip,
+    })
 
     const cookieHeader = await buildSessionCookie(user)
     const response = ok({ name: user.name, role: user.role })

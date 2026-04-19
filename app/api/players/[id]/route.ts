@@ -5,7 +5,9 @@ import {
   rateLimit,
   rateLimitResponse,
 } from '@/lib/rateLimit'
+import { scheduleSingletonAfter } from '@/server/lib/scheduleSingletonAfter'
 import { requireAuth } from '@/server/security/authGuard'
+import { refreshLatestStaleSnapshot } from '@/server/services/analyticsService'
 import {
   deleteExistingPlayer,
   updateExistingPlayer,
@@ -29,6 +31,13 @@ export async function PATCH(
     const { id } = await context.params
     const body = await request.json()
     const player = await updateExistingPlayer(Number(id), body)
+    scheduleSingletonAfter(
+      'analytics-refresh-latest-stale',
+      async () => {
+        await refreshLatestStaleSnapshot()
+      },
+      { source: 'players-route', action: 'update', playerId: player.id },
+    )
     return ok(player)
   } catch (err) {
     return fail(err)
@@ -52,6 +61,13 @@ export async function DELETE(
 
     const { id } = await context.params
     const result = await deleteExistingPlayer(Number(id))
+    scheduleSingletonAfter(
+      'analytics-refresh-latest-stale',
+      async () => {
+        await refreshLatestStaleSnapshot()
+      },
+      { source: 'players-route', action: 'delete', playerId: Number(id) },
+    )
     return ok(result)
   } catch (err) {
     return fail(err)

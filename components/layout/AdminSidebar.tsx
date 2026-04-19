@@ -1,4 +1,6 @@
 import { NavLink } from './NavLink'
+import { getLocale } from '@/lib/i18n/server'
+import { getAdminMessages } from '@/app/(admin)/admin/messages'
 
 const ICON = {
   overview: (<svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 4a2 2 0 012-2h3a2 2 0 012 2v3a2 2 0 01-2 2H4a2 2 0 01-2-2V4zM11 4a2 2 0 012-2h3a2 2 0 012 2v3a2 2 0 01-2 2h-3a2 2 0 01-2-2V4zM2 13a2 2 0 012-2h3a2 2 0 012 2v3a2 2 0 01-2 2H4a2 2 0 01-2-2v-3zM11 13a2 2 0 012-2h3a2 2 0 012 2v3a2 2 0 01-2 2h-3a2 2 0 01-2-2v-3z"/></svg>),
@@ -9,10 +11,12 @@ const ICON = {
   back:     (<svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd"/></svg>),
 }
 
-export function AdminSidebar() {
+export async function AdminSidebar() {
+  const locale = await getLocale()
+  const t = getAdminMessages(locale).sidebar
+
   return (
-    <aside className="w-56 shrink-0 flex flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] h-dvh sticky top-0">
-      {/* Header */}
+    <aside className="hidden md:flex flex-col w-56 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] h-dvh sticky top-0">
       <div className="px-5 py-5 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-[var(--color-warning-dim)] border border-[var(--color-warning)]/20 flex items-center justify-center shrink-0">
@@ -21,24 +25,22 @@ export function AdminSidebar() {
             </svg>
           </div>
           <div>
-            <h1 className="text-[0.8rem] font-bold text-[var(--color-text-primary)] tracking-tight leading-none">Administration</h1>
-            <p className="text-[0.65rem] text-[var(--color-text-muted)] mt-0.5">Last War Tracker</p>
+            <h1 className="text-[0.8rem] font-bold text-[var(--color-text-primary)] tracking-tight leading-none">{t.title}</h1>
+            <p className="text-[0.65rem] text-[var(--color-text-muted)] mt-0.5">{t.subtitle}</p>
           </div>
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-        <NavLink href="/admin"          icon={ICON.overview} label="Vue d'ensemble" />
-        <NavLink href="/admin/users"    icon={ICON.users}    label="Utilisateurs" />
-        <NavLink href="/admin/roles"    icon={ICON.roles}    label="Rôles & Droits" />
-        <NavLink href="/admin/security" icon={ICON.security} label="Sécurité" />
-        <NavLink href="/admin/audit"    icon={ICON.audit}    label="Journal d'audit" />
+        <NavLink href="/admin" icon={ICON.overview} label={t.overview} />
+        <NavLink href="/admin/users" icon={ICON.users} label={t.users} />
+        <NavLink href="/admin/roles" icon={ICON.roles} label={t.roles} />
+        <NavLink href="/admin/security" icon={ICON.security} label={t.security} />
+        <NavLink href="/admin/audit" icon={ICON.audit} label={t.audit} />
       </nav>
 
-      {/* Back to app */}
       <div className="px-3 pb-4 border-t border-[var(--color-border)] pt-3">
-        <NavLink href="/dashboard" icon={ICON.back} label="Retour à l'app" />
+        <NavLink href="/dashboard" icon={ICON.back} label={t.backToApp} />
       </div>
     </aside>
   )

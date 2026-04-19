@@ -15,8 +15,9 @@ interface TrainSelectorProps {
 }
 
 export function TrainSelector({ weekId, weekLabel, settings, existingRuns, canTrigger }: TrainSelectorProps) {
-  const { dict }                      = useI18n()
+  const { dict, locale }              = useI18n()
   const t                             = dict.trains
+  const isFrench                      = locale === 'fr'
   const [selectedDay, setSelectedDay] = useState<number>(1)
   const [loading, setLoading]         = useState<'idle' | 'day' | 'week'>('idle')
   const [errorMsg, setErrorMsg]       = useState<string | null>(null)
@@ -44,13 +45,13 @@ export function TrainSelector({ weekId, weekLabel, settings, existingRuns, canTr
         body: JSON.stringify({ weekId, trainDay: selectedDay }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error?.message ?? 'Erreur')
+      if (!res.ok) throw new Error(data?.error?.message ?? (isFrench ? 'Erreur' : 'Error'))
       const newRun: TrainRunApi = data.data
       setLocalRuns((prev) => [...prev.filter((r) => r.trainDay !== selectedDay), newRun])
       setLoading('idle')
     } catch (err) {
       setLoading('idle')
-      setErrorMsg(err instanceof Error ? err.message : 'Erreur inconnue')
+      setErrorMsg(err instanceof Error ? err.message : (isFrench ? 'Erreur inconnue' : 'Unknown error'))
     }
   }
 
@@ -64,13 +65,13 @@ export function TrainSelector({ weekId, weekLabel, settings, existingRuns, canTr
         body: JSON.stringify({ weekId }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error?.message ?? 'Erreur')
+      if (!res.ok) throw new Error(data?.error?.message ?? (isFrench ? 'Erreur' : 'Error'))
       const newRuns: TrainRunApi[] = data.data
       setLocalRuns(newRuns)
       setLoading('idle')
     } catch (err) {
       setLoading('idle')
-      setErrorMsg(err instanceof Error ? err.message : 'Erreur inconnue')
+      setErrorMsg(err instanceof Error ? err.message : (isFrench ? 'Erreur inconnue' : 'Unknown error'))
     }
   }
 

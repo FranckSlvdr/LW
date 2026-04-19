@@ -2,32 +2,29 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useI18n } from '@/lib/i18n/client'
 import type { UserRole } from '@/types/domain'
+import { getAdminMessages } from '../messages'
 
 interface Props {
-  userId:    string
-  isActive:  boolean
-  role:      UserRole
-  isSelf:    boolean
+  userId: string
+  isActive: boolean
+  role: UserRole
+  isSelf: boolean
   actorRole: UserRole
 }
 
-const ROLE_LABELS: Record<UserRole, string> = {
-  super_admin: 'Super Admin',
-  admin:       'Admin',
-  manager:     'Manager',
-  viewer:      'Viewer',
-}
-
-/** Roles the actor is allowed to assign. */
 function assignableRoles(actorRole: UserRole): UserRole[] {
   if (actorRole === 'super_admin') return ['viewer', 'manager', 'admin', 'super_admin']
   return ['viewer', 'manager']
 }
 
 export function UserActions({ userId, isActive, role, isSelf, actorRole }: Props) {
-  const [loading,     setLoading]     = useState(false)
-  const [resetUrl,    setResetUrl]    = useState<string | null>(null)
+  const { locale } = useI18n()
+  const t = getAdminMessages(locale)
+  const ui = t.userActions
+  const [loading, setLoading] = useState(false)
+  const [resetUrl, setResetUrl] = useState<string | null>(null)
   const [resetCopied, setResetCopied] = useState(false)
   const router = useRouter()
 
@@ -35,34 +32,34 @@ export function UserActions({ userId, isActive, role, isSelf, actorRole }: Props
     setLoading(true)
     try {
       const res = await fetch(`/api/users/${userId}`, {
-        method:  'PATCH',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error?.message ?? 'Erreur')
+      if (!res.ok) throw new Error(data?.error?.message ?? ui.error)
       router.refresh()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erreur inconnue')
+      alert(err instanceof Error ? err.message : ui.unknownError)
     } finally {
       setLoading(false)
     }
   }
 
   async function handleForceReset() {
-    if (!confirm('Générer un lien de réinitialisation pour cet utilisateur ?')) return
+    if (!confirm(ui.generateResetConfirm)) return
     setLoading(true)
     try {
-      const res  = await fetch(`/api/users/${userId}/force-reset`, { method: 'POST' })
+      const res = await fetch(`/api/users/${userId}/force-reset`, { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error?.message ?? 'Erreur')
+      if (!res.ok) throw new Error(data?.error?.message ?? ui.error)
       if (data.data?.resetUrl) {
         setResetUrl(data.data.resetUrl)
       } else {
-        alert('Email de réinitialisation envoyé.')
+        alert(ui.resetEmailSent)
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erreur inconnue')
+      alert(err instanceof Error ? err.message : ui.unknownError)
     } finally {
       setLoading(false)
     }
@@ -75,14 +72,11 @@ export function UserActions({ userId, isActive, role, isSelf, actorRole }: Props
     setTimeout(() => setResetCopied(false), 2000)
   }
 
-  // Role select is shown only when the actor can actually reassign the target's current role.
-  // e.g. an admin cannot touch a super_admin or another admin.
   const roleOptions = assignableRoles(actorRole)
   const canEditRole = !isSelf && roleOptions.includes(role)
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {/* Role selector — visible only when actor can reassign this user's role */}
       {canEditRole && (
         <select
           value={role}
@@ -91,12 +85,11 @@ export function UserActions({ userId, isActive, role, isSelf, actorRole }: Props
           className="text-xs px-2 py-1 rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] text-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--color-accent)] disabled:opacity-40"
         >
           {roleOptions.map((r) => (
-            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+            <option key={r} value={r}>{t.roleLabels[r]}</option>
           ))}
         </select>
       )}
 
-      {/* Active toggle */}
       {!isSelf && (
         <button
           onClick={() => patch({ isActive: !isActive })}
@@ -108,20 +101,18 @@ export function UserActions({ userId, isActive, role, isSelf, actorRole }: Props
               : 'border-[var(--color-success)]/30 text-[var(--color-success)] hover:bg-[var(--color-success-dim)]',
           ].join(' ')}
         >
-          {isActive ? 'Désactiver' : 'Activer'}
+          {isActive ? ui.deactivate : ui.activate}
         </button>
       )}
 
-      {/* Force password reset */}
       <button
         onClick={handleForceReset}
         disabled={loading}
         className="text-xs px-2.5 py-1 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-warning)] hover:border-[var(--color-warning)]/30 transition-colors disabled:opacity-40"
       >
-        Forcer reset mdp
+        {ui.forceReset}
       </button>
 
-      {/* Reset URL display (when SMTP not configured) */}
       {resetUrl && (
         <div className="w-full mt-1 flex items-center gap-2">
           <input
@@ -133,13 +124,13 @@ export function UserActions({ userId, isActive, role, isSelf, actorRole }: Props
             onClick={copyResetUrl}
             className="text-xs px-2.5 py-1 rounded border border-[var(--color-warning)]/30 text-[var(--color-warning)] hover:bg-[var(--color-warning-dim)] transition-colors shrink-0"
           >
-            {resetCopied ? 'Copié ✓' : 'Copier'}
+            {resetCopied ? `${ui.copied} ✓` : ui.copy}
           </button>
           <button
             onClick={() => setResetUrl(null)}
             className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
           >
-            ✕
+            ×
           </button>
         </div>
       )}

@@ -14,9 +14,10 @@ interface OcrImporterProps {
 type Step = 'input' | 'validating' | 'review' | 'done' | 'error'
 
 export function OcrImporter({ weeks }: OcrImporterProps) {
-  const { dict }                  = useI18n()
+  const { dict, locale }          = useI18n()
   const t                         = dict.ocr
   const tTrains                   = dict.trains
+  const isFrench                  = locale === 'fr'
   const [step, setStep]           = useState<Step>('input')
   const [text, setText]           = useState('')
   const [weekId, setWeekId]       = useState<string>(String(weeks[0]?.id ?? ''))
@@ -38,11 +39,11 @@ export function OcrImporter({ weeks }: OcrImporterProps) {
         body:    JSON.stringify({ text: text.trim(), profile: 'lastwar-vs' }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error?.message ?? 'Erreur de parsing')
+      if (!res.ok) throw new Error(data?.error?.message ?? (isFrench ? 'Erreur de parsing' : 'Parsing error'))
       setResult(data.data)
       setStep('review')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+      setError(err instanceof Error ? err.message : (isFrench ? 'Erreur inconnue' : 'Unknown error'))
       setStep('error')
     }
   }
@@ -58,7 +59,7 @@ export function OcrImporter({ weeks }: OcrImporterProps) {
         body:    JSON.stringify({ weekId: Number(weekId), dayOfWeek, rows }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error?.message ?? 'Erreur d\'import')
+      if (!res.ok) throw new Error(data?.error?.message ?? (isFrench ? "Erreur d'import" : 'Import error'))
 
       const count = data.data?.imported ?? rows.length
       setImportMsg(t.importSuccess
@@ -66,7 +67,7 @@ export function OcrImporter({ weeks }: OcrImporterProps) {
         .replace('{s}', count > 1 ? 's' : ''))
       setStep('done')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+      setError(err instanceof Error ? err.message : (isFrench ? 'Erreur inconnue' : 'Unknown error'))
     } finally {
       setConfirming(false)
     }

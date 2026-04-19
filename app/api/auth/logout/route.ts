@@ -1,5 +1,6 @@
 import { ok, fail } from '@/lib/apiResponse'
 import { getClientIp } from '@/lib/rateLimit'
+import { logger } from '@/lib/logger'
 import { clearSessionCookie, getSessionUser } from '@/server/security/authGuard'
 import { invalidateUserSessions } from '@/server/services/userService'
 import { insertAuditLog } from '@/server/repositories/auditRepository'
@@ -9,6 +10,12 @@ export async function POST(request: Request) {
   try {
     const user = await getSessionUser()
     if (user) {
+      logger.info('Logout requested', {
+        userId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
+        ipAddress: ip,
+      })
       await invalidateUserSessions(user.id)
       await insertAuditLog({
         entityType:  'user',

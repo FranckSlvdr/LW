@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { formatScore } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n/client'
 import type { PlayerApi, DesertStormScoreApi } from '@/types/api'
 
 interface DesertStormFormProps {
@@ -20,16 +21,36 @@ export function DesertStormForm({
   disabled = false,
   disabledReason,
 }: DesertStormFormProps) {
-  const existingMap  = new Map(existingScores.map((s) => [s.playerId, s.score]))
+  const { locale } = useI18n()
+  const isFrench = locale === 'fr'
+  const t = {
+    saveError: isFrench ? 'Erreur lors de la sauvegarde' : 'Failed to save scores',
+    unknownError: isFrench ? 'Erreur inconnue' : 'Unknown error',
+    title: isFrench ? 'Saisie des scores' : 'Score entry',
+    subtitle: isFrench
+      ? 'Entrez les scores Desert Storm de chaque joueur pour cette semaine'
+      : 'Enter each player Desert Storm score for this week',
+    current: isFrench ? 'Actuel:' : 'Current:',
+    saving: isFrench ? 'Sauvegarde...' : 'Saving...',
+    saveAll: isFrench ? 'Sauvegarder tous les scores' : 'Save all scores',
+    retry: isFrench ? 'Reessayer' : 'Retry',
+    success: (count: number) => isFrench
+      ? `OK ${count} score${count > 1 ? 's' : ''} sauvegarde${count > 1 ? 's' : ''}`
+      : `OK ${count} score${count > 1 ? 's' : ''} saved`,
+    partial: (succeeded: number, failed: number, message: string) => isFrench
+      ? `${succeeded} sauvegarde${succeeded > 1 ? 's' : ''}, ${failed} erreur${failed > 1 ? 's' : ''} - ${message}`
+      : `${succeeded} saved, ${failed} error${failed > 1 ? 's' : ''} - ${message}`,
+  }
+  const existingMap = new Map(existingScores.map((score) => [score.playerId, score.score]))
   const [entries, setEntries] = useState<Array<{ playerId: number; score: string }>>(
-    players.map((p) => ({ playerId: p.id, score: String(existingMap.get(p.id) ?? '') })),
+    players.map((player) => ({ playerId: player.id, score: String(existingMap.get(player.id) ?? '') })),
   )
-  const [status, setStatus]   = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const [msg, setMsg]         = useState<string | null>(null)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [msg, setMsg] = useState<string | null>(null)
 
   function updateScore(playerId: number, value: string) {
     setEntries((prev) =>
-      prev.map((e) => e.playerId === playerId ? { ...e, score: value } : e),
+      prev.map((entry) => (entry.playerId === playerId ? { ...entry, score: value } : entry)),
     )
   }
 
@@ -37,47 +58,46 @@ export function DesertStormForm({
     setStatus('loading')
     setMsg(null)
 
-    const toSave = entries.filter((e) => e.score.trim() !== '' && !isNaN(Number(e.score)))
+    const toSave = entries.filter((entry) => entry.score.trim() !== '' && !Number.isNaN(Number(entry.score)))
 
     try {
       const results = await Promise.allSettled(
-        toSave.map(async (e) => {
+        toSave.map(async (entry) => {
           const res = await fetch('/api/desert-storm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ playerId: e.playerId, weekId, score: Number(e.score) }),
+            body: JSON.stringify({ playerId: entry.playerId, weekId, score: Number(entry.score) }),
           })
           if (!res.ok) {
             const data = await res.json().catch(() => ({}))
-            throw new Error(data?.error?.message ?? `Erreur ${res.status}`)
+            throw new Error(data?.error?.message ?? `${isFrench ? 'Erreur' : 'Error'} ${res.status}`)
           }
           return res
         }),
       )
-      const succeeded = results.filter((r) => r.status === 'fulfilled').length
-      const failed    = results.filter((r) => r.status === 'rejected')
+
+      const succeeded = results.filter((result) => result.status === 'fulfilled').length
+      const failed = results.filter((result) => result.status === 'rejected')
+
       if (failed.length > 0) {
-        const firstErr = (failed[0] as PromiseRejectedResult).reason
+        const firstError = (failed[0] as PromiseRejectedResult).reason
         setStatus('error')
-        setMsg(`⚠️ ${succeeded} sauvegardé${succeeded > 1 ? 's' : ''}, ${failed.length} erreur${failed.length > 1 ? 's' : ''} — ${firstErr instanceof Error ? firstErr.message : 'Erreur inconnue'}`)
+        setMsg(t.partial(succeeded, failed.length, firstError instanceof Error ? firstError.message : t.unknownError))
       } else {
         setStatus('done')
-        setMsg(`✅ ${succeeded} score${succeeded > 1 ? 's' : ''} sauvegardé${succeeded > 1 ? 's' : ''}`)
+        setMsg(t.success(succeeded))
       }
     } catch {
       setStatus('error')
-      setMsg('Erreur lors de la sauvegarde')
+      setMsg(t.saveError)
     }
   }
 
-  const playerMap = new Map(players.map((p) => [p.id, p]))
+  const playerMap = new Map(players.map((player) => [player.id, player]))
 
   return (
     <Card>
-      <CardHeader
-        title="Saisie des scores"
-        subtitle="Entrez les scores Desert Storm de chaque joueur pour cette semaine"
-      />
+      <CardHeader title={t.title} subtitle={t.subtitle} />
 
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {entries.map((entry) => {
@@ -90,7 +110,7 @@ export function DesertStormForm({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{player.name}</p>
                 {current !== undefined && (
-                  <p className="text-xs text-[var(--color-text-muted)]">Actuel : {formatScore(current)}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">{t.current} {formatScore(current)}</p>
                 )}
               </div>
               <input
@@ -113,17 +133,20 @@ export function DesertStormForm({
           disabled={status === 'loading' || disabled}
           className="px-5 py-2 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-40"
         >
-          {status === 'loading' ? 'Sauvegarde…' : 'Sauvegarder tous les scores'}
+          {status === 'loading' ? t.saving : t.saveAll}
         </button>
         {disabled && disabledReason && (
           <span className="text-sm text-[var(--color-text-muted)]">{disabledReason}</span>
         )}
         {status === 'error' && (
           <button
-            onClick={() => { setStatus('idle'); setMsg(null) }}
+            onClick={() => {
+              setStatus('idle')
+              setMsg(null)
+            }}
             className="px-4 py-2 text-sm border border-[var(--color-border)] text-[var(--color-text-muted)] rounded-lg hover:border-[var(--color-accent)] transition-colors"
           >
-            Réessayer
+            {t.retry}
           </button>
         )}
         {msg && (

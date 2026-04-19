@@ -1,6 +1,8 @@
 import { Card, CardHeader } from '@/components/ui/Card'
 import { formatScore } from '@/lib/utils'
+import { getLocale } from '@/lib/i18n/server'
 import type { ContributionApi } from '@/types/api'
+import { getContributionMessages } from '../messages'
 
 interface ContributionTableProps {
   contributions: ContributionApi[]
@@ -12,14 +14,17 @@ const MEDAL: Record<number, { bg: string; text: string; ring: string }> = {
   3: { bg: 'bg-[#b45309]/15', text: 'text-[#cd7c2f]', ring: 'ring-1 ring-[#b45309]/25' },
 }
 
-export function ContributionTable({ contributions }: ContributionTableProps) {
+export async function ContributionTable({ contributions }: ContributionTableProps) {
+  const locale = await getLocale()
+  const t = getContributionMessages(locale).table
+
   if (contributions.length === 0) {
     return (
       <Card>
         <div className="py-12 text-center space-y-2">
           <p className="text-3xl opacity-30">💰</p>
-          <p className="text-sm font-medium text-[var(--color-text-secondary)]">Aucune contribution enregistrée</p>
-          <p className="text-xs text-[var(--color-text-muted)]">Saisissez les contributions via le formulaire ci-dessus</p>
+          <p className="text-sm font-medium text-[var(--color-text-secondary)]">{t.empty}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">{t.emptyHint}</p>
         </div>
       </Card>
     )
@@ -31,8 +36,8 @@ export function ContributionTable({ contributions }: ContributionTableProps) {
     <Card padding="none">
       <div className="p-5 pb-3">
         <CardHeader
-          title="Classement des contributions"
-          subtitle={`${contributions.length} joueur${contributions.length > 1 ? 's' : ''}`}
+          title={t.title}
+          subtitle={`${contributions.length} ${t.player.toLowerCase()}${contributions.length > 1 ? 's' : ''}`}
         />
       </div>
 
@@ -40,11 +45,11 @@ export function ContributionTable({ contributions }: ContributionTableProps) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-y border-[var(--color-border)] bg-[var(--color-surface-raised)]/40">
-              <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs w-16">Rang</th>
-              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Joueur</th>
-              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Contribution</th>
-              <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">Montant</th>
-              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Note</th>
+              <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs w-16">{t.rank}</th>
+              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">{t.player}</th>
+              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">{t.contribution}</th>
+              <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">{t.amount}</th>
+              <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">{t.note}</th>
             </tr>
           </thead>
           <tbody>
@@ -69,7 +74,7 @@ export function ContributionTable({ contributions }: ContributionTableProps) {
                     <p className="font-medium text-[var(--color-text-primary)]">{c.playerName}</p>
                     {c.playerAlias && <p className="text-xs text-[var(--color-text-muted)]">{c.playerAlias}</p>}
                     {c.rank === 1 && (
-                      <span className="text-[0.6rem] text-[var(--color-accent)] font-semibold">⭐ Sélectionné train</span>
+                      <span className="text-[0.6rem] text-[var(--color-accent)] font-semibold">{t.selectedTrain}</span>
                     )}
                   </td>
                   <td className="px-5 py-3">

@@ -5,7 +5,9 @@ import {
   rateLimit,
   rateLimitResponse,
 } from '@/lib/rateLimit'
+import { scheduleSingletonAfter } from '@/server/lib/scheduleSingletonAfter'
 import { requireAuth } from '@/server/security/authGuard'
+import { refreshLatestStaleSnapshot } from '@/server/services/analyticsService'
 import { createNewPlayer, getAllPlayers } from '@/server/services/playerService'
 
 export async function GET() {
@@ -32,6 +34,13 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const player = await createNewPlayer(body)
+    scheduleSingletonAfter(
+      'analytics-refresh-latest-stale',
+      async () => {
+        await refreshLatestStaleSnapshot()
+      },
+      { source: 'players-route', action: 'create', playerId: player.id },
+    )
     return created(player)
   } catch (err) {
     return fail(err)

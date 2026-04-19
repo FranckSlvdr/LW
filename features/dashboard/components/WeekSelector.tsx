@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useI18n } from '@/lib/i18n/client'
 import type { WeekApi } from '@/types/api'
 
 interface WeekSelectorProps {
@@ -9,10 +10,12 @@ interface WeekSelectorProps {
 }
 
 export function WeekSelector({ weeks, selectedWeekId }: WeekSelectorProps) {
+  const { locale } = useI18n()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const selectedWeek = weeks.find((week) => week.id === selectedWeekId) ?? null
+  const isFrench = locale === 'fr'
 
   function handleChange(nextWeekId: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -20,7 +23,9 @@ export function WeekSelector({ weeks, selectedWeekId }: WeekSelectorProps) {
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  const statusLabel = selectedWeek?.isLocked ? 'Verrouillee' : 'Active'
+  const statusLabel = selectedWeek?.isLocked
+    ? (isFrench ? 'Verrouillee' : 'Locked')
+    : (isFrench ? 'Active' : 'Active')
   const statusClasses = selectedWeek?.isLocked
     ? 'bg-[var(--color-text-muted)]/10 text-[var(--color-text-muted)] border-[var(--color-border)]'
     : 'bg-[var(--color-success-dim)] text-[var(--color-success)] border-[var(--color-success)]/20'
@@ -33,10 +38,15 @@ export function WeekSelector({ weeks, selectedWeekId }: WeekSelectorProps) {
         className="text-xs bg-[var(--color-surface-raised)] border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-3 py-1.5 cursor-pointer hover:border-[var(--color-accent)]/50 focus:border-[var(--color-accent)] focus:outline-none transition-colors"
       >
         {weeks.map((week, index) => {
-          const state = week.isLocked ? 'verrouillee' : index === 0 ? 'active' : 'ouverte'
+          const state = week.isLocked
+            ? (isFrench ? 'verrouillee' : 'locked')
+            : index === 0
+              ? (isFrench ? 'active' : 'active')
+              : (isFrench ? 'ouverte' : 'open')
+
           return (
             <option key={week.id} value={week.id}>
-              {week.label} · {state}
+              {week.label} - {state}
             </option>
           )
         })}

@@ -1,13 +1,17 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
+import { useI18n } from '@/lib/i18n/client'
+import { getAuthMessages } from '@/app/auth/messages'
 
 export default function ForgotPasswordPage() {
-  const [email,   setEmail]   = useState('')
-  const [sent,    setSent]    = useState(false)
+  const { locale } = useI18n()
+  const t = getAuthMessages(locale).forgotPassword
+  const [email, setEmail] = useState('')
+  const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -16,14 +20,13 @@ export default function ForgotPasswordPage() {
 
     try {
       await fetch('/api/auth/forgot-password', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email }),
+        body: JSON.stringify({ email }),
       })
-      // Always show success to prevent user enumeration
       setSent(true)
     } catch {
-      setError('Une erreur est survenue. Réessayez plus tard.')
+      setError(t.genericError)
     } finally {
       setLoading(false)
     }
@@ -32,19 +35,16 @@ export default function ForgotPasswordPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-[var(--color-bg-base)] px-4">
       <div className="w-full max-w-sm space-y-6">
-
         <div className="text-center space-y-1">
-          <p className="text-2xl font-bold text-[var(--color-text-primary)]">Mot de passe oublié</p>
-          <p className="text-sm text-[var(--color-text-muted)]">Recevez un lien de réinitialisation</p>
+          <p className="text-2xl font-bold text-[var(--color-text-primary)]">{t.title}</p>
+          <p className="text-sm text-[var(--color-text-muted)]">{t.subtitle}</p>
         </div>
 
         {sent ? (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center space-y-3">
-            <p className="text-sm text-[var(--color-text-primary)]">
-              Si un compte existe pour cet email, vous recevrez un lien sous peu.
-            </p>
+            <p className="text-sm text-[var(--color-text-primary)]">{t.success}</p>
             <Link href="/login" className="text-sm text-[var(--color-accent)] hover:underline">
-              Retour à la connexion
+              {t.backToLogin}
             </Link>
           </div>
         ) : (
@@ -72,17 +72,16 @@ export default function ForgotPasswordPage() {
               disabled={loading || !email}
               className="w-full py-2.5 text-sm font-semibold bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-40"
             >
-              {loading ? 'Envoi…' : 'Envoyer le lien'}
+              {loading ? t.loading : t.submit}
             </button>
 
             <p className="text-center text-xs text-[var(--color-text-muted)]">
               <Link href="/login" className="hover:text-[var(--color-accent)]">
-                Retour à la connexion
+                {t.backToLogin}
               </Link>
             </p>
           </form>
         )}
-
       </div>
     </main>
   )

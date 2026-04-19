@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/layout/Sidebar'
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
 import { getSessionUser } from '@/server/security/authGuard'
 
 // Allow up to 60s for dashboard pages. Production logs showed occasional
@@ -14,9 +15,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <div className="flex h-dvh overflow-hidden bg-[var(--color-bg-base)]">
       <Sidebar user={user} />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
         {children}
       </div>
+      <MobileBottomNav user={user} />
     </div>
   )
 }

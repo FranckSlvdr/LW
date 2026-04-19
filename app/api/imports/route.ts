@@ -10,7 +10,7 @@ import {
 } from '@/lib/rateLimit'
 import { APP_CONFIG } from '@/config/app.config'
 import { requireAuth } from '@/server/security/authGuard'
-import { refreshWeekAnalytics } from '@/server/services/analyticsService'
+import { refreshLatestStaleSnapshot, refreshWeekAnalytics } from '@/server/services/analyticsService'
 import { scheduleSingletonAfter } from '@/server/lib/scheduleSingletonAfter'
 import {
   getRecentImports,
@@ -65,6 +65,13 @@ export async function POST(request: Request) {
 
     if (type === 'players') {
       const result = await importPlayersFromCsv(csvContent, filename)
+      scheduleSingletonAfter(
+        'analytics-refresh-latest-stale',
+        async () => {
+          await refreshLatestStaleSnapshot()
+        },
+        { source: 'imports-route', importType: 'players', filename },
+      )
       return created(result)
     }
 

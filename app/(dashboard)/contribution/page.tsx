@@ -11,6 +11,7 @@ import { getSessionUser, hasPermission } from '@/server/security/authGuard'
 import { formatScore } from '@/lib/utils'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import type { Dictionary } from '@/lib/i18n/types'
+import { getContributionMessages } from '@/features/contribution/messages'
 export const maxDuration = 60
 
 interface PageProps {
@@ -22,13 +23,16 @@ async function ContributionContent({
   canEdit,
   manualEditDisabledReason,
   dict,
+  locale,
 }: {
   weekId: number
   canEdit: boolean
   manualEditDisabledReason: string | null
   dict: Dictionary
+  locale: 'fr' | 'en'
 }) {
   const t = dict.contribution
+  const isFrench = locale === 'fr'
   const [players, contributions] = await Promise.all([
     getAllPlayers(true),
     weekId ? getContributionsForWeek(weekId) : Promise.resolve([]),
@@ -49,14 +53,14 @@ async function ContributionContent({
           </div>
           <ExportButton
             rows={contributions.map((c) => ({
-              'Rang':    c.rank,
-              'Joueur':  c.playerName,
-              'Alias':   c.playerAlias ?? '',
-              'Montant': c.amount,
-              'Note':    c.note ?? '',
+              [isFrench ? 'Rang' : 'Rank']: c.rank,
+              [isFrench ? 'Joueur' : 'Player']: c.playerName,
+              Alias: c.playerAlias ?? '',
+              [isFrench ? 'Montant' : 'Amount']: c.amount,
+              [isFrench ? 'Note' : 'Note']: c.note ?? '',
             }))}
             filename={`contributions-semaine-${weekId}`}
-            sheetName="Contributions"
+            sheetName={isFrench ? 'Contributions' : 'Contributions'}
           />
         </div>
 
@@ -99,6 +103,7 @@ export default async function ContributionPage({ searchParams }: PageProps) {
     getSessionUser(),
   ])
   const dict    = await getDict(locale)
+  const messages = getContributionMessages(locale)
   const canEdit = user ? hasPermission(user.role, 'scores:edit') : false
 
   const selectedWeekId = weekIdParam ? Number(weekIdParam) : weeks[0]?.id ?? 0
@@ -106,9 +111,9 @@ export default async function ContributionPage({ searchParams }: PageProps) {
   const currentWeek    = weeks.find((w) => w.id === validWeekId)
   const isLatestWeek   = currentWeek ? weeks[0]?.id === currentWeek.id : false
   const manualEditDisabledReason = currentWeek?.isLocked
-    ? 'Semaine verrouillee : les saisies manuelles sont bloquees.'
+    ? messages.lockedWeek
     : !isLatestWeek
-    ? 'Les saisies manuelles sont autorisees uniquement sur la semaine active.'
+    ? messages.activeWeekOnly
     : null
 
   return (
@@ -120,6 +125,7 @@ export default async function ContributionPage({ searchParams }: PageProps) {
           canEdit={canEdit}
           manualEditDisabledReason={manualEditDisabledReason}
           dict={dict}
+          locale={locale}
         />
       </Suspense>
     </>

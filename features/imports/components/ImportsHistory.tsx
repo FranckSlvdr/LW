@@ -1,6 +1,7 @@
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { interpolate } from '@/lib/i18n/utils'
+import { getImportsMessages } from '@/features/imports/messages'
 import type { Import } from '@/types/domain'
 import type { Dictionary } from '@/lib/i18n/types'
 
@@ -11,6 +12,7 @@ interface ImportsHistoryProps {
 }
 
 export function ImportsHistory({ imports, locale, dict }: ImportsHistoryProps) {
+  const messages = getImportsMessages(locale === 'fr' ? 'fr' : 'en').history
   const statusBadge = {
     success: { variant: 'success' as const, label: dict.statusSuccess },
     partial: { variant: 'warning' as const, label: dict.statusPartial },
@@ -28,7 +30,7 @@ export function ImportsHistory({ imports, locale, dict }: ImportsHistoryProps) {
       <div className="p-5 pb-3">
         <CardHeader
           title={dict.title}
-          subtitle={`${imports.length} imports`}
+          subtitle={messages.subtitle(imports.length)}
         />
       </div>
 
@@ -39,11 +41,11 @@ export function ImportsHistory({ imports, locale, dict }: ImportsHistoryProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-y border-[var(--color-border)] bg-[var(--color-surface-raised)]/40">
-                <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Fichier</th>
-                <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Type</th>
-                <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Lignes</th>
-                <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Statut</th>
-                <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">Date</th>
+                <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">{messages.columns.file}</th>
+                <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">{messages.columns.type}</th>
+                <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">{messages.columns.lines}</th>
+                <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">{messages.columns.status}</th>
+                <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">{messages.columns.date}</th>
               </tr>
             </thead>
             <tbody>

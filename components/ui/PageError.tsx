@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useI18n } from '@/lib/i18n/client'
 
 interface PageErrorProps {
   error: Error & { digest?: string }
@@ -8,11 +9,10 @@ interface PageErrorProps {
   pageName?: string
 }
 
-/**
- * Generic error boundary UI — used by all (dashboard) route error.tsx files.
- * Never leaks internal error details in production.
- */
 export function PageError({ error, reset, pageName }: PageErrorProps) {
+  const { locale } = useI18n()
+  const isFrench = locale === 'fr'
+
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       console.error(`[${pageName ?? 'Page'} Error]`, error)
@@ -31,13 +31,19 @@ export function PageError({ error, reset, pageName }: PageErrorProps) {
         <div className="text-4xl select-none">⚠️</div>
 
         <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
-          {isDbError ? 'Base de données inaccessible' : 'Une erreur est survenue'}
+          {isDbError
+            ? (isFrench ? 'Base de données inaccessible' : 'Database unavailable')
+            : (isFrench ? 'Une erreur est survenue' : 'An error occurred')}
         </h2>
 
         <p className="text-sm text-[var(--color-text-secondary)]">
           {isDbError
-            ? 'Vérifiez que DATABASE_URL est défini et que PostgreSQL est accessible.'
-            : `La page${pageName ? ` ${pageName}` : ''} n'a pas pu charger les données. Réessayez ou contactez un administrateur.`}
+            ? (isFrench
+              ? 'Vérifiez que DATABASE_URL est défini et que PostgreSQL est accessible.'
+              : 'Check that DATABASE_URL is set and PostgreSQL is reachable.')
+            : (isFrench
+              ? `La page${pageName ? ` ${pageName}` : ''} n'a pas pu charger les données. Réessayez ou contactez un administrateur.`
+              : `The${pageName ? ` ${pageName}` : ''} page could not load its data. Try again or contact an administrator.`)}
         </p>
 
         {isDev && (
@@ -51,12 +57,12 @@ export function PageError({ error, reset, pageName }: PageErrorProps) {
             onClick={reset}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity"
           >
-            Réessayer
+            {isFrench ? 'Réessayer' : 'Retry'}
           </button>
         </div>
 
         {error.digest && (
-          <p className="text-xs text-[var(--color-text-muted)]">Code : {error.digest}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">{isFrench ? 'Code' : 'Code'} : {error.digest}</p>
         )}
       </div>
     </main>

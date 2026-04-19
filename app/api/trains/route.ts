@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ok, created, fail } from '@/lib/apiResponse'
+import { logger } from '@/lib/logger'
 import {
   HEAVY_API_RATE_LIMIT,
   buildRateLimitIdentifier,
@@ -13,12 +14,15 @@ import {
   triggerTrainSelection,
 } from '@/server/services/trainService'
 
+export const maxDuration = 60
+
 const triggerSchema = z.object({
   weekId: z.number().int().positive(),
   trainDay: z.number().int().min(1).max(7),
 })
 
 export async function GET(request: Request) {
+  const startedAt = Date.now()
   try {
     await requireAuth('dashboard:view')
     const { searchParams } = new URL(request.url)
@@ -27,6 +31,11 @@ export async function GET(request: Request) {
 
     if (weekId) {
       const runs = await getTrainRunsForWeek(Number(weekId))
+      logger.info('Train API week runs loaded', {
+        weekId: Number(weekId),
+        runs: runs.length,
+        ms: Date.now() - startedAt,
+      })
       return ok(runs)
     }
 
@@ -36,13 +45,23 @@ export async function GET(request: Request) {
       : 30
 
     const history = await getRecentTrainHistory(limit)
+    logger.info('Train API history loaded', {
+      limit,
+      runs: history.length,
+      ms: Date.now() - startedAt,
+    })
     return ok(history)
   } catch (err) {
+    logger.error('Train API GET failed', {
+      message: err instanceof Error ? err.message : String(err),
+      ms: Date.now() - startedAt,
+    })
     return fail(err)
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now()
   try {
     const actor = await requireAuth('trains:trigger')
     const limit = await rateLimit(
@@ -57,8 +76,19 @@ export async function POST(request: Request) {
     const body = await request.json()
     const input = triggerSchema.parse(body)
     const result = await triggerTrainSelection(input)
+    logger.info('Train API day selection completed', {
+      actorId: actor.id,
+      weekId: input.weekId,
+      trainDay: input.trainDay,
+      selections: result.selections.length,
+      ms: Date.now() - startedAt,
+    })
     return created(result)
   } catch (err) {
+    logger.error('Train API POST failed', {
+      message: err instanceof Error ? err.message : String(err),
+      ms: Date.now() - startedAt,
+    })
     return fail(err)
   }
 }

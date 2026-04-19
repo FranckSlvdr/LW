@@ -1,75 +1,102 @@
 'use client'
 
-import { useState, useRef, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader } from '@/components/ui/Card'
-import { formatScoreCompact, formatScore } from '@/lib/utils'
+import { formatScore, formatScoreCompact } from '@/lib/utils'
 import { interpolate } from '@/lib/i18n/utils'
+import { useI18n } from '@/lib/i18n/client'
 import { APP_CONFIG } from '@/config/app.config'
 import type { PlayerKpi } from '@/types/api'
 import type { DayOfWeek } from '@/types/domain'
 import type { Dictionary } from '@/lib/i18n/types'
 
 interface ScoreHeatmapProps {
-  kpis:     PlayerKpi[]
-  dict:     Dictionary['heatmap']
-  weekId:   number
+  kpis: PlayerKpi[]
+  dict: Dictionary['heatmap']
+  weekId: number
   canEdit?: boolean
 }
 
 function heatColors(ratio: number, isEco: boolean): { bg: string; fg: string; border?: string } {
   if (isEco) {
-    const a = 0.12 + ratio * 0.35
+    const alpha = 0.12 + ratio * 0.35
     return {
-      bg:     `rgba(245, 158, 11, ${a})`,
-      fg:     ratio > 0.45 ? 'rgba(245,158,11,1)' : 'rgba(245,158,11,0.8)',
+      bg: `rgba(245, 158, 11, ${alpha})`,
+      fg: ratio > 0.45 ? 'rgba(245,158,11,1)' : 'rgba(245,158,11,0.8)',
       border: 'rgba(245, 158, 11, 0.3)',
     }
   }
+
   if (ratio < 0.15) return { bg: 'rgba(79,121,255,0.08)', fg: 'rgba(79,121,255,0.6)' }
   if (ratio < 0.35) return { bg: 'rgba(79,121,255,0.22)', fg: 'rgba(79,121,255,0.9)' }
   if (ratio < 0.55) return { bg: 'rgba(79,121,255,0.42)', fg: 'rgba(255,255,255,0.85)' }
   if (ratio < 0.75) return { bg: 'rgba(79,121,255,0.62)', fg: 'rgba(255,255,255,0.95)' }
-  return               { bg: 'rgba(79,121,255,0.85)', fg: 'rgba(255,255,255,1)' }
+  return { bg: 'rgba(79,121,255,0.85)', fg: 'rgba(255,255,255,1)' }
 }
 
 function getEcoDaySet(kpis: PlayerKpi[]): Set<DayOfWeek> {
-  const set   = new Set<DayOfWeek>()
+  const set = new Set<DayOfWeek>()
   const first = kpis[0]
   if (!first) return set
-  for (const d of first.dailyScores) {
-    if (d.isEco) set.add(d.dayOfWeek)
+
+  for (const day of first.dailyScores) {
+    if (day.isEco) set.add(day.dayOfWeek)
   }
+
   return set
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatmapProps) {
-  const router                              = useRouter()
-  const [, startTransition]                 = useTransition()
-  const refreshTimerRef                     = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // key `${playerId}:${day}` → overridden score after an inline save
-  const [localScores, setLocalScores]       = useState<Map<string, number>>(new Map())
-  // which cell is being edited
-  const [editingCell, setEditingCell]       = useState<{ playerId: number; day: number } | null>(null)
-  const [editValue, setEditValue]           = useState('')
-  // key of cell currently being saved
-  const [savingKey, setSavingKey]           = useState<string | null>(null)
-  // key of cell that had a save error
-  const [errorKey, setErrorKey]             = useState<string | null>(null)
+  const { locale } = useI18n()
+  const router = useRouter()
+  const [, startTransition] = useTransition()
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [localScores, setLocalScores] = useState<Map<string, number>>(new Map())
+  const [editingCell, setEditingCell] = useState<{ playerId: number; day: number } | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [errorKey, setErrorKey] = useState<string | null>(null)
+
+  const isFrench = locale === 'fr'
+  const ui = {
+    editHint: isFrench ? 'cliquez sur une cellule pour modifier' : 'click a cell to edit',
+    clickToEdit: isFrench ? 'Cliquer pour modifier' : 'Click to edit',
+    clickToRetry: isFrench ? 'Erreur - cliquer pour reessayer' : 'Error - click to retry',
+    errorLabel: isFrench ? 'Erreur' : 'Error',
+    rawLabel: isFrench ? 'brut' : 'raw',
+    capped: isFrench ? 'Plafonne' : 'Capped',
+    edited: isFrench ? 'Modifie' : 'Edited',
+  }
+
+  const ecoDays = getEcoDaySet(kpis)
+  const allScores = kpis.flatMap((kpi) =>
+    kpi.dailyScores.map((day) => localScores.get(`${kpi.playerId}:${day.dayOfWeek}`) ?? day.adjustedScore),
+  )
+  const maxScore = Math.max(...allScores, 1)
+  const sorted = [...kpis].sort((a, b) => b.totalScore - a.totalScore)
+
+  function clearRefreshTimer() {
+    if (!refreshTimerRef.current) return
+    clearTimeout(refreshTimerRef.current)
+    refreshTimerRef.current = null
+  }
+
+  function scheduleRefresh() {
+    clearRefreshTimer()
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null
+      startTransition(() => router.refresh())
+    }, 3000)
+  }
+
+  useEffect(() => clearRefreshTimer, [])
 
   if (kpis.length === 0) return null
 
-  const ecoDays   = getEcoDaySet(kpis)
-  const allScores = kpis.flatMap((k) =>
-    k.dailyScores.map((d) => localScores.get(`${k.playerId}:${d.dayOfWeek}`) ?? d.adjustedScore),
-  )
-  const maxScore = Math.max(...allScores, 1)
-  const sorted   = [...kpis].sort((a, b) => b.totalScore - a.totalScore)
-
   function startEdit(playerId: number, day: number, currentRaw: number) {
     if (!canEdit) return
+    clearRefreshTimer()
     setEditingCell({ playerId, day })
     setEditValue(currentRaw > 0 ? String(currentRaw) : '')
     setErrorKey(null)
@@ -78,11 +105,16 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
   function cancelEdit() {
     setEditingCell(null)
     setEditValue('')
+
+    // If the user pauses after a successful edit, refresh once the grid is idle.
+    if (localScores.size > 0 && savingKey === null) {
+      scheduleRefresh()
+    }
   }
 
   async function confirmEdit(playerId: number, day: number, raw: string) {
     const parsed = Number(raw.trim())
-    if (raw.trim() === '' || isNaN(parsed) || parsed < 0) {
+    if (raw.trim() === '' || Number.isNaN(parsed) || parsed < 0) {
       cancelEdit()
       return
     }
@@ -95,24 +127,21 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
 
     try {
       const res = await fetch('/api/scores', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
+        body: JSON.stringify({
           weekId,
           scores: [{ playerId, dayOfWeek: day, score: parsed }],
         }),
       })
+
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error?.message ?? `Erreur ${res.status}`)
+        throw new Error(data?.error?.message ?? `${ui.errorLabel} ${res.status}`)
       }
-      // Mise à jour locale optimiste
+
       setLocalScores((prev) => new Map(prev).set(key, parsed))
-      // Recharge les KPIs en arrière-plan — debounced pour éviter un after() par cellule sauvegardée
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-      refreshTimerRef.current = setTimeout(() => {
-        startTransition(() => router.refresh())
-      }, 3000)
+      scheduleRefresh()
     } catch {
       setErrorKey(key)
     } finally {
@@ -125,7 +154,7 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
       <div className="p-5 pb-3">
         <CardHeader
           title={dict.title}
-          subtitle={canEdit ? `${dict.subtitle} — cliquez sur un score pour le modifier` : dict.subtitle}
+          subtitle={canEdit ? `${dict.subtitle} - ${ui.editHint}` : dict.subtitle}
         />
       </div>
 
@@ -136,18 +165,19 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
               <th className="px-5 py-2.5 text-left text-[var(--color-text-muted)] font-medium w-40">
                 {dict.colPlayer}
               </th>
-              {dict.days.map((d, i) => {
-                const day   = (i + 1) as DayOfWeek
+              {dict.days.map((dayLabel, index) => {
+                const day = (index + 1) as DayOfWeek
                 const isEco = ecoDays.has(day)
+
                 return (
-                  <th key={d} className="px-2 py-2.5 text-center font-semibold w-16 tracking-wide">
+                  <th key={dayLabel} className="px-2 py-2.5 text-center font-semibold w-16 tracking-wide">
                     <div className="flex flex-col items-center gap-0.5">
                       <span className={isEco ? 'text-amber-400' : 'text-[var(--color-text-muted)]'}>
-                        {d}
+                        {dayLabel}
                       </span>
                       {isEco && (
                         <span className="text-[0.5rem] font-bold uppercase tracking-wide text-amber-400 bg-amber-500/15 px-1 rounded">
-                          ÉCO
+                          ECO
                         </span>
                       )}
                     </div>
@@ -160,13 +190,13 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
             </tr>
           </thead>
           <tbody>
-            {sorted.map((kpi, idx) => (
+            {sorted.map((kpi, index) => (
               <tr
                 key={kpi.playerId}
                 className={[
                   'border-b border-[var(--color-border-subtle)] transition-colors group',
                   'hover:bg-[var(--color-surface-raised)]/60',
-                  idx % 2 !== 0 ? 'bg-[var(--color-surface-raised)]/20' : '',
+                  index % 2 !== 0 ? 'bg-[var(--color-surface-raised)]/20' : '',
                 ].join(' ')}
               >
                 <td className="px-5 py-2">
@@ -186,14 +216,14 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
                 </td>
 
                 {kpi.dailyScores.map((dayData) => {
-                  const key         = `${kpi.playerId}:${dayData.dayOfWeek}`
-                  const displayRaw  = localScores.get(key) ?? dayData.score
-                  const displayAdj  = (ecoDays.has(dayData.dayOfWeek) && displayRaw > APP_CONFIG.ecoScoreCap)
+                  const key = `${kpi.playerId}:${dayData.dayOfWeek}`
+                  const displayRaw = localScores.get(key) ?? dayData.score
+                  const displayAdjusted = ecoDays.has(dayData.dayOfWeek) && displayRaw > APP_CONFIG.ecoScoreCap
                     ? APP_CONFIG.ecoScoreCap
                     : displayRaw
-                  const isEditing   = editingCell?.playerId === kpi.playerId && editingCell?.day === dayData.dayOfWeek
-                  const isSaving    = savingKey === key
-                  const hasError    = errorKey === key
+                  const isEditing = editingCell?.playerId === kpi.playerId && editingCell?.day === dayData.dayOfWeek
+                  const isSaving = savingKey === key
+                  const hasError = errorKey === key
 
                   return (
                     <td key={dayData.dayOfWeek} className="px-2 py-1.5">
@@ -202,13 +232,13 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
                           value={editValue}
                           isEco={ecoDays.has(dayData.dayOfWeek)}
                           onChange={setEditValue}
-                          onConfirm={(v) => confirmEdit(kpi.playerId, dayData.dayOfWeek, v)}
+                          onConfirm={(value) => confirmEdit(kpi.playerId, dayData.dayOfWeek, value)}
                           onCancel={cancelEdit}
                         />
                       ) : (
                         <HeatCell
                           rawScore={displayRaw}
-                          adjustedScore={displayAdj}
+                          adjustedScore={displayAdjusted}
                           max={maxScore}
                           isEco={dayData.isEco}
                           isEdited={localScores.has(key)}
@@ -218,6 +248,7 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
                           playerName={kpi.playerName}
                           day={dict.days[dayData.dayOfWeek - 1] ?? ''}
                           dict={dict}
+                          ui={ui}
                           onClick={() => startEdit(kpi.playerId, dayData.dayOfWeek, dayData.score)}
                         />
                       )}
@@ -226,22 +257,23 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
                 })}
 
                 {(() => {
-                  // Recompute total locally so edited cells reflect immediately
-                  const localTotal = kpi.dailyScores.reduce((sum, d) => {
-                    const k = `${kpi.playerId}:${d.dayOfWeek}`
-                    const localRaw = localScores.get(k)
+                  const localTotal = kpi.dailyScores.reduce((sum, day) => {
+                    const key = `${kpi.playerId}:${day.dayOfWeek}`
+                    const localRaw = localScores.get(key)
                     if (localRaw !== undefined) {
-                      const adj = ecoDays.has(d.dayOfWeek) && localRaw > APP_CONFIG.ecoScoreCap
-                        ? APP_CONFIG.ecoScoreCap : localRaw
-                      return sum + adj
+                      const adjusted = ecoDays.has(day.dayOfWeek) && localRaw > APP_CONFIG.ecoScoreCap
+                        ? APP_CONFIG.ecoScoreCap
+                        : localRaw
+                      return sum + adjusted
                     }
-                    return sum + d.adjustedScore
+                    return sum + day.adjustedScore
                   }, 0)
                   const hasActivity = localTotal > 0 || kpi.daysPlayed > 0
+
                   return (
                     <td className="px-5 py-2 text-right tabular-nums">
                       {!hasActivity ? (
-                        <span className="text-[var(--color-text-muted)]">—</span>
+                        <span className="text-[var(--color-text-muted)]">{'\u2014'}</span>
                       ) : (
                         <div className="flex flex-col items-end gap-0.5">
                           <span className="font-bold text-[var(--color-text-primary)]">
@@ -249,7 +281,7 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
                           </span>
                           {!localScores.size && kpi.rawTotalScore > kpi.totalScore && (
                             <span className="text-[0.55rem] text-[var(--color-text-muted)] tabular-nums">
-                              brut {formatScoreCompact(kpi.rawTotalScore)}
+                              {ui.rawLabel} {formatScoreCompact(kpi.rawTotalScore)}
                             </span>
                           )}
                         </div>
@@ -263,7 +295,6 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
         </table>
       </div>
 
-      {/* Legend */}
       <div className="px-5 py-3 border-t border-[var(--color-border)] flex flex-wrap items-center gap-4 text-[0.65rem] text-[var(--color-text-muted)]">
         <LegendItem color="var(--color-surface-raised)" label={dict.legendAbsent} />
         <LegendItem color="rgba(245,158,11,0.35)" label={dict.legendEco} border="rgba(245,158,11,0.3)" />
@@ -276,7 +307,7 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
         </div>
         {canEdit && (
           <span className="ml-auto text-[var(--color-text-muted)] opacity-60">
-            ✏️ Cliquez sur une cellule pour modifier
+            {'\u270F\uFE0F'} {ui.editHint}
           </span>
         )}
       </div>
@@ -284,14 +315,12 @@ export function ScoreHeatmap({ kpis, dict, weekId, canEdit = false }: ScoreHeatm
   )
 }
 
-// ─── EditCell ─────────────────────────────────────────────────────────────────
-
 interface EditCellProps {
-  value:     string
-  isEco:     boolean
-  onChange:  (v: string) => void
-  onConfirm: (v: string) => void
-  onCancel:  () => void
+  value: string
+  isEco: boolean
+  onChange: (value: string) => void
+  onConfirm: (value: string) => void
+  onCancel: () => void
 }
 
 function EditCell({ value, isEco, onChange, onConfirm, onCancel }: EditCellProps) {
@@ -311,9 +340,7 @@ function EditCell({ value, isEco, onChange, onConfirm, onCancel }: EditCellProps
   }
 
   function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
-    if (!confirmed.current) {
-      onConfirm(e.target.value)
-    }
+    if (!confirmed.current) onConfirm(e.target.value)
     confirmed.current = false
   }
 
@@ -337,27 +364,42 @@ function EditCell({ value, isEco, onChange, onConfirm, onCancel }: EditCellProps
   )
 }
 
-// ─── HeatCell ─────────────────────────────────────────────────────────────────
-
 interface HeatCellProps {
-  rawScore:      number
+  rawScore: number
   adjustedScore: number
-  max:           number
-  isEco:         boolean
-  isEdited:      boolean
-  isSaving:      boolean
-  hasError:      boolean
-  canEdit:       boolean
-  playerName:    string
-  day:           string
-  dict:          Dictionary['heatmap']
-  onClick:       () => void
+  max: number
+  isEco: boolean
+  isEdited: boolean
+  isSaving: boolean
+  hasError: boolean
+  canEdit: boolean
+  playerName: string
+  day: string
+  dict: Dictionary['heatmap']
+  ui: {
+    editHint: string
+    clickToEdit: string
+    clickToRetry: string
+    capped: string
+    edited: string
+  }
+  onClick: () => void
 }
 
 function HeatCell({
-  rawScore, adjustedScore, max, isEco,
-  isEdited, isSaving, hasError, canEdit,
-  playerName, day, dict, onClick,
+  rawScore,
+  adjustedScore,
+  max,
+  isEco,
+  isEdited,
+  isSaving,
+  hasError,
+  canEdit,
+  playerName,
+  day,
+  dict,
+  ui,
+  onClick,
 }: HeatCellProps) {
   const interactiveClass = canEdit
     ? 'cursor-pointer hover:scale-110 hover:ring-1 hover:ring-[var(--color-accent)]/50'
@@ -365,9 +407,11 @@ function HeatCell({
 
   if (isSaving) {
     return (
-      <div className="w-12 h-7 rounded mx-auto flex items-center justify-center opacity-50"
-        style={{ background: 'rgba(79,121,255,0.2)' }}>
-        <span className="text-[0.45rem] text-[var(--color-text-muted)]">…</span>
+      <div
+        className="w-12 h-7 rounded mx-auto flex items-center justify-center opacity-50"
+        style={{ background: 'rgba(79,121,255,0.2)' }}
+      >
+        <span className="text-[0.45rem] text-[var(--color-text-muted)]">{'\u2026'}</span>
       </div>
     )
   }
@@ -376,9 +420,9 @@ function HeatCell({
     return (
       <div
         onClick={onClick}
-        className={`w-12 h-7 rounded mx-auto flex items-center justify-center cursor-pointer ring-1 ring-[var(--color-danger)]`}
+        className="w-12 h-7 rounded mx-auto flex items-center justify-center cursor-pointer ring-1 ring-[var(--color-danger)]"
         style={{ background: 'rgba(239,68,68,0.15)' }}
-        title="Erreur — cliquer pour réessayer"
+        title={ui.clickToRetry}
       >
         <span className="text-[0.5rem] text-[var(--color-danger)]">!</span>
       </div>
@@ -396,23 +440,35 @@ function HeatCell({
         style={{ background: 'rgba(22,22,42,0.5)' }}
         data-tooltip={interpolate(dict.tooltipAbsent, { player: playerName, day, absentWord: dict.absent })}
       >
-        <span className="text-[var(--color-text-muted)] text-[0.5rem]">—</span>
+        <span className="text-[var(--color-text-muted)] text-[0.5rem]">{'\u2014'}</span>
       </div>
     )
   }
 
-  const ratio   = Math.max(0.05, adjustedScore / max)
-  const colors  = heatColors(ratio, isEco)
+  const ratio = Math.max(0.05, adjustedScore / max)
+  const colors = heatColors(ratio, isEco)
   const wasCapped = isEco && rawScore > APP_CONFIG.ecoScoreCap
 
   const tooltip = wasCapped
     ? interpolate(dict.tooltipScoreEcoCapped, {
-        player: playerName, day,
-        score: formatScore(rawScore), adjusted: formatScore(adjustedScore), ecoWord: dict.eco,
+        player: playerName,
+        day,
+        score: formatScore(rawScore),
+        adjusted: formatScore(adjustedScore),
+        ecoWord: dict.eco,
       })
     : isEco
-    ? interpolate(dict.tooltipScoreEco,   { player: playerName, day, score: formatScore(rawScore), ecoWord: dict.eco })
-    : interpolate(dict.tooltipScore,      { player: playerName, day, score: formatScore(rawScore) })
+      ? interpolate(dict.tooltipScoreEco, {
+          player: playerName,
+          day,
+          score: formatScore(rawScore),
+          ecoWord: dict.eco,
+        })
+      : interpolate(dict.tooltipScore, {
+          player: playerName,
+          day,
+          score: formatScore(rawScore),
+        })
 
   return (
     <div
@@ -425,17 +481,17 @@ function HeatCell({
         background: colors.bg,
         border: colors.border ? `1px solid ${colors.border}` : undefined,
       }}
-      title={canEdit ? 'Cliquer pour modifier' : undefined}
-      data-tooltip={canEdit ? `${tooltip} — cliquer pour modifier` : tooltip}
+      title={canEdit ? ui.clickToEdit : undefined}
+      data-tooltip={canEdit ? `${tooltip} - ${ui.editHint}` : tooltip}
     >
       <span className="text-[0.55rem] font-semibold tabular-nums" style={{ color: colors.fg }}>
         {formatScoreCompact(adjustedScore)}
       </span>
       {wasCapped && (
-        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" title="Plafonné" />
+        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" title={ui.capped} />
       )}
       {isEdited && !wasCapped && (
-        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" title="Modifié" />
+        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" title={ui.edited} />
       )}
     </div>
   )
