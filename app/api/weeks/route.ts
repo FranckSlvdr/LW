@@ -6,6 +6,8 @@ import {
   rateLimitResponse,
 } from '@/lib/rateLimit'
 import { requireAuth } from '@/server/security/authGuard'
+import { refreshWeekAnalytics } from '@/server/services/analyticsService'
+import { scheduleSingletonAfter } from '@/server/lib/scheduleSingletonAfter'
 import { createNewWeek, getAllWeeks } from '@/server/services/weekService'
 
 export async function GET() {
@@ -32,6 +34,15 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const week = await createNewWeek(body)
+
+    // Pre-seed the analytics snapshot so the first visit to /vs is instant
+    // instead of triggering a cold 7-query computation on page load.
+    scheduleSingletonAfter(
+      `analytics-seed:${week.id}`,
+      () => refreshWeekAnalytics(week.id),
+      { source: 'week-create', weekId: week.id },
+    )
+
     return created(week)
   } catch (err) {
     return fail(err)

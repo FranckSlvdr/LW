@@ -191,3 +191,11 @@ export interface WeekRankStatsRow {
   avg_days_played: string
   computed_at: Date
 }
+
+// ─── Generic stats cache (migration 017) ─────────────────────────────────────
+
+export interface StatsCacheRow {
+  key: string
+  payload: unknown  // typed at service layer (e.g. AllianceKpiStats)
+  computed_at: Date
+}

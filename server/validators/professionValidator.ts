@@ -3,13 +3,10 @@ import { MAX_PROFESSION_LEVEL } from '@/server/engines/ratingEngine'
 
 const positiveId = z.number().int().positive()
 
-/** Valid profession keys — extend as the game adds roles */
+/** Valid profession keys */
 export const PROFESSION_KEYS = [
-  'farmer',
-  'fighter',
-  'builder',
-  'researcher',
-  'explorer',
+  'engineer',
+  'warlord',
 ] as const
 
 export type ProfessionKey = typeof PROFESSION_KEYS[number]

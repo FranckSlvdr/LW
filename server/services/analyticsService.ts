@@ -129,6 +129,25 @@ export async function refreshStaleSnapshots(): Promise<{ refreshed: number; fail
   return { refreshed, failed }
 }
 
+/**
+ * Refreshes only the most recent stale snapshot.
+ *
+ * Used after roster mutations so the latest visible dashboard/vs pages become
+ * fresh quickly, while older stale weeks can be handled later by cron.
+ */
+export async function refreshLatestStaleSnapshot(): Promise<number | null> {
+  const weekIds = await findStaleSnapshotWeekIds()
+  const latestWeekId = weekIds[0] ?? null
+
+  if (!latestWeekId) {
+    logger.info('No stale snapshot to refresh after roster mutation')
+    return null
+  }
+
+  await refreshWeekAnalytics(latestWeekId)
+  return latestWeekId
+}
+
 // ─── Analytics reads ──────────────────────────────────────────────────────────
 
 /**

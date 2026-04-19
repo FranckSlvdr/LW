@@ -128,11 +128,8 @@ export const en: Dictionary = {
     emptyHint: 'Use POST /api/professions to assign roles',
     levelBadge: 'Lv {n}',
     professionLabels: {
-      farmer:     'Farmer',
-      fighter:    'Fighter',
-      builder:    'Builder',
-      researcher: 'Researcher',
-      explorer:   'Explorer',
+      engineer: 'Engineer',
+      warlord:  'Warlord',
     },
   },
 
@@ -172,7 +169,7 @@ export const en: Dictionary = {
     historyEmpty:    'No draws yet',
     historyEmptyHint:'Run a first draw to see history',
     historyExcluded: '{n} excluded',
-    settingsTitle:    'Configuration',
+    settingsTitle:    'Settings',
     settingsSubtitle: 'Train draw rules',
     exclusionWindowLabel: 'Exclusion window',
     exclusionWindowNone:  'None',

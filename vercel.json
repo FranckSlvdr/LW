@@ -5,7 +5,11 @@
   "crons": [
     {
       "path": "/api/cron/refresh-analytics",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/compute-alliance-stats",
+      "schedule": "0 4 * * *"
     }
   ]
 }

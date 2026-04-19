@@ -463,3 +463,44 @@ export interface CreateWeekInput {
   startDate: string
   label?: string
 }
+
+// ─── Alliance KPI stats (cross-week, computed daily by cron) ─────────────────
+
+/** One player entry in a ranking panel (top/flop/absent/DS). */
+export interface AlliancePlayerEntry {
+  playerId: number
+  playerName: string
+  playerAlias: string | null
+  /** Primary value: totalScore (top/flop), daysPlayed (absent), dsCount (DS). */
+  value: number
+  /** Secondary context: daysPlayed (top/flop), maxDays (absent), weeksTotal (DS). */
+  extra: number
+}
+
+/** One week's alliance aggregate for the trend table. */
+export interface AllianceWeekEntry {
+  weekLabel: string
+  totalScore: number
+  activePlayers: number
+  avgScore: number
+}
+
+/**
+ * Full cross-week alliance stats snapshot.
+ * Computed daily by the `compute-alliance-stats` cron and stored in stats_cache.
+ */
+export interface AllianceKpiStats {
+  computedAt: string
+  weeksConsidered: number
+  weekLabels: string[]             // chronological order (oldest → newest)
+  topVS: AlliancePlayerEntry[]     // top 3 by cumulative totalScore
+  flopVS: AlliancePlayerEntry[]    // bottom 3 by cumulative totalScore (played ≥ 1 day)
+  mostAbsent: AlliancePlayerEntry[] // 3 most absent (fewest daysPlayed)
+  leastDS: AlliancePlayerEntry[]   // 3 least registered in Desert Storm
+  perfectAttendance: AlliancePlayerEntry[] // 6/6 all weeks (value = weeksPresent)
+  weeklyTotals: AllianceWeekEntry[]        // oldest → newest
+  avgParticipation4w: number   // 0–1 across all active players × weeks
+  globalAvgScore4w: number     // avg score per active player-week
+  totalScore4w: number         // alliance cumulative score across 4 weeks
+}
+

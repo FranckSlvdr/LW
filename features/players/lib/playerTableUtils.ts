@@ -18,12 +18,17 @@ export interface PlayersSummary {
 
 export const MAX_PROFESSION_LEVEL = 10
 
+export const RANK_BADGE_VARIANT: Record<PlayerRank, 'danger' | 'warning' | 'success' | 'info' | 'neutral'> = {
+  R5: 'danger',
+  R4: 'warning',
+  R3: 'success',
+  R2: 'info',
+  R1: 'neutral',
+}
+
 export const PROFESSION_ICON: Record<string, string> = {
-  farmer: '\u{1F33E}',
-  fighter: '\u2694\uFE0F',
-  builder: '\u{1F3D7}\uFE0F',
-  researcher: '\u{1F52C}',
-  explorer: '\u{1F5FA}\uFE0F',
+  engineer: '\u{2699}\uFE0F',
+  warlord:  '\u2694\uFE0F',
 }
 
 export function comparePlayers(a: PlayerApi, b: PlayerApi): number {

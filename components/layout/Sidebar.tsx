@@ -2,6 +2,7 @@ import { NavLink } from './NavLink'
 import { getLocale, getDict } from '@/lib/i18n/server'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { LogoutButton } from '@/components/auth/LogoutButton'
+import { hasPermission } from '@/server/security/permissions'
 import type { AuthUser } from '@/types/domain'
 
 const NAV_ICONS = {
@@ -12,6 +13,7 @@ const NAV_ICONS = {
   desert:    (<svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.381z" clipRule="evenodd"/></svg>),
   contribution: (<svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/></svg>),
   imports:   (<svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd"/></svg>),
+  kpi:       (<svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>),
   settings:  (<svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/></svg>),
 } as const
 
@@ -22,24 +24,48 @@ interface SidebarProps {
 export async function Sidebar({ user }: SidebarProps) {
   const locale = await getLocale()
   const dict = await getDict(locale)
-  const nav  = dict.nav
-  const app  = dict.app
+  const nav = dict.nav
+  const app = dict.app
+  const labels = locale === 'fr'
+    ? {
+        vs: '⚔️ Scores VS',
+        trains: '🚂 Trains',
+        desertStorm: '🌪️ Desert Storm',
+        contribution: '💰 Contribution',
+        kpi: '📊 Statistiques',
+        admin: 'Administration',
+        modules: 'Modules',
+        config: 'Settings',
+      }
+    : {
+        vs: '⚔️ VS Scores',
+        trains: '🚂 Trains',
+        desertStorm: '🌪️ Desert Storm',
+        contribution: '💰 Contribution',
+        kpi: '📊 Statistics',
+        admin: 'Administration',
+        modules: 'Modules',
+        config: 'Configuration',
+      }
+  const canViewAdmin = user ? hasPermission(user.role, 'admin:view') : false
 
-  const NAV_ITEMS = [
-    { href: '/dashboard',     label: nav.dashboard,    icon: NAV_ICONS.dashboard,     section: null },
-    { href: '/vs',            label: '⚔️ Scores VS',   icon: NAV_ICONS.vs,            section: null },
-    { href: '/players',       label: nav.players,      icon: NAV_ICONS.players,       section: null },
-    { href: '/imports',       label: nav.imports,      icon: NAV_ICONS.imports,       section: null },
-    { href: '/trains',        label: '🚂 Trains',       icon: NAV_ICONS.trains,        section: 'game' },
-    { href: '/desert-storm',  label: '🌪️ Desert Storm', icon: NAV_ICONS.desert,        section: 'game' },
-    { href: '/contribution',  label: '💰 Contribution', icon: NAV_ICONS.contribution,  section: 'game' },
-    { href: '/settings',      label: nav.settings,     icon: NAV_ICONS.settings,      section: 'config' },
-    { href: '/admin',         label: 'Administration', icon: NAV_ICONS.settings,      section: 'config' },
+  const navItems = [
+    { href: '/dashboard', label: nav.dashboard, icon: NAV_ICONS.dashboard, section: null },
+    { href: '/vs', label: labels.vs, icon: NAV_ICONS.vs, section: null },
+    { href: '/players', label: nav.players, icon: NAV_ICONS.players, section: null },
+    { href: '/imports', label: nav.imports, icon: NAV_ICONS.imports, section: null },
+    { href: '/kpi', label: labels.kpi, icon: NAV_ICONS.kpi, section: null },
+    { href: '/trains', label: labels.trains, icon: NAV_ICONS.trains, section: 'game' },
+    { href: '/desert-storm', label: labels.desertStorm, icon: NAV_ICONS.desert, section: 'game' },
+    { href: '/contribution', label: labels.contribution, icon: NAV_ICONS.contribution, section: 'game' },
+    { href: '/settings', label: nav.settings, icon: NAV_ICONS.settings, section: 'config' },
+    ...(canViewAdmin
+      ? [{ href: '/admin', label: labels.admin, icon: NAV_ICONS.settings, section: 'config' as const }]
+      : []),
   ]
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] h-dvh sticky top-0">
-      {/* Logo */}
+    <aside className="hidden md:flex flex-col w-56 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] h-dvh sticky top-0">
       <div className="px-5 py-5 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg gradient-surface-accent border border-[var(--color-accent)]/20 flex items-center justify-center shrink-0">
@@ -54,42 +80,34 @@ export async function Sidebar({ user }: SidebarProps) {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-        {/* Core */}
-        {NAV_ITEMS.filter((i) => !i.section).map((item) => (
+        {navItems.filter((i) => !i.section).map((item) => (
           <NavLink key={item.href} href={item.href} icon={item.icon} label={item.label} />
         ))}
 
-        {/* Game modules */}
         <p className="px-2 pt-3 pb-1 text-[0.6rem] text-[var(--color-text-muted)] uppercase tracking-widest font-semibold">
-          Modules
+          {labels.modules}
         </p>
-        {NAV_ITEMS.filter((i) => i.section === 'game').map((item) => (
+        {navItems.filter((i) => i.section === 'game').map((item) => (
           <NavLink key={item.href} href={item.href} icon={item.icon} label={item.label} />
         ))}
 
-        {/* Config */}
         <p className="px-2 pt-3 pb-1 text-[0.6rem] text-[var(--color-text-muted)] uppercase tracking-widest font-semibold">
-          Config
+          {labels.config}
         </p>
-        {NAV_ITEMS.filter((i) => i.section === 'config').map((item) => (
+        {navItems.filter((i) => i.section === 'config').map((item) => (
           <NavLink key={item.href} href={item.href} icon={item.icon} label={item.label} />
         ))}
       </nav>
 
-      {/* Footer */}
       <div className="px-3 py-3 border-t border-[var(--color-border)] space-y-2">
-        {/* User identity + logout */}
         {user && (
           <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--color-surface-raised)] border border-[var(--color-border)]">
-            {/* Avatar */}
             <div className="w-6 h-6 rounded-full bg-[var(--color-accent)]/20 border border-[var(--color-accent)]/30 flex items-center justify-center shrink-0">
               <span className="text-[0.55rem] font-bold text-[var(--color-accent)] uppercase">
                 {user.name.charAt(0)}
               </span>
             </div>
-            {/* Name */}
             <div className="flex-1 min-w-0">
               <p className="text-[0.65rem] font-medium text-[var(--color-text-primary)] truncate leading-none">
                 {user.name}
@@ -98,12 +116,10 @@ export async function Sidebar({ user }: SidebarProps) {
                 {user.role}
               </p>
             </div>
-            {/* Logout */}
             <LogoutButton />
           </div>
         )}
 
-        {/* Language + live badge */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1 text-[0.6rem] text-[var(--color-success)]">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse-dot" />

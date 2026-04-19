@@ -128,11 +128,8 @@ export const fr: Dictionary = {
     emptyHint: 'Utilisez POST /api/professions pour assigner les rôles',
     levelBadge: 'Nv {n}',
     professionLabels: {
-      farmer:     'Fermier',
-      fighter:    'Combattant',
-      builder:    'Constructeur',
-      researcher: 'Chercheur',
-      explorer:   'Explorateur',
+      engineer: 'Ingénieur',
+      warlord:  'Chef de guerre',
     },
   },
 

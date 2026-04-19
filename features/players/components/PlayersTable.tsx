@@ -1,11 +1,14 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { useI18n } from '@/lib/i18n/client'
+import { getPlayersMessages } from '@/features/players/messages'
 import {
   MAX_PROFESSION_LEVEL,
   PROFESSION_ICON,
+  RANK_BADGE_VARIANT,
   summarizePlayers,
   sortPlayers,
 } from '@/features/players/lib/playerTableUtils'
@@ -14,26 +17,10 @@ import type {
   FilterRank,
   FilterStatus,
 } from '@/features/players/lib/playerTableUtils'
-import { PLAYER_RANKS, RANK_LABEL } from '@/types/domain'
+import { PLAYER_RANKS } from '@/types/domain'
 import type { PlayerApi, ProfessionApi } from '@/types/api'
 import type { PlayerRank } from '@/types/domain'
 
-
-const RANK_BADGE_VARIANT: Record<PlayerRank, 'danger' | 'warning' | 'success' | 'info' | 'neutral'> = {
-  R5: 'danger',
-  R4: 'warning',
-  R3: 'success',
-  R2: 'info',
-  R1: 'neutral',
-}
-
-const RANK_SHORT: Record<PlayerRank, string> = {
-  R5: 'R5 Leader',
-  R4: 'R4 Officier',
-  R3: 'R3 Actif',
-  R2: 'R2 Occasionnel',
-  R1: 'R1 Inactif',
-}
 
 const PROFESSION_KEYS = Object.keys(PROFESSION_ICON)
 const EMPTY_MARK = '\u2014'
@@ -48,12 +35,30 @@ interface PlayersTableProps {
   canManage: boolean
 }
 
-interface EditingName { id: number; value: string }
-interface EditingLevel { id: number; value: string }
-interface EditingJoinedAt { id: number; value: string }
-interface EditingProfession { id: number; key: string; level: string }
+interface EditingName {
+  id: number
+  value: string
+}
+
+interface EditingLevel {
+  id: number
+  value: string
+}
+
+interface EditingJoinedAt {
+  id: number
+  value: string
+}
+
+interface EditingProfession {
+  id: number
+  key: string
+  level: string
+}
 
 export function PlayersTable({ players, canManage }: PlayersTableProps) {
+  const { locale } = useI18n()
+  const t = getPlayersMessages(locale)
   const [rows, setRows] = useState(() => sortPlayers(players))
   const [showAdd, setShowAdd] = useState(false)
   const [filterStatus, setStatus] = useState<FilterStatus>('all')
@@ -62,8 +67,8 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
   const [confirmDelId, setConfirmDel] = useState<number | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [editingName, setEditingName]       = useState<EditingName | null>(null)
-  const [editingLevel, setEditingLevel]     = useState<EditingLevel | null>(null)
+  const [editingName, setEditingName] = useState<EditingName | null>(null)
+  const [editingLevel, setEditingLevel] = useState<EditingLevel | null>(null)
   const [editingJoinedAt, setEditingJoinedAt] = useState<EditingJoinedAt | null>(null)
   const [editingProfession, setEditingProf] = useState<EditingProfession | null>(null)
 
@@ -96,14 +101,14 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la mise a jour')
+        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? t.errors.update)
         return
       }
 
       const updated = (data as { data?: PlayerApi }).data
       if (updated) replacePlayer(updated)
     } catch {
-      setDeleteError('Erreur reseau, veuillez reessayer')
+      setDeleteError(t.errors.network)
     } finally {
       setIsSaving(false)
     }
@@ -131,7 +136,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         updatePlayer(playerId, () => previousPlayer)
-        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la mise a jour du rang')
+        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? t.errors.updateRank)
         return
       }
 
@@ -139,7 +144,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
       if (updated) replacePlayer(updated)
     } catch {
       updatePlayer(playerId, () => previousPlayer)
-      setDeleteError('Erreur reseau, veuillez reessayer')
+      setDeleteError(t.errors.network)
     } finally {
       setIsSaving(false)
     }
@@ -154,21 +159,21 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
       const data = await res.json().catch(() => ({}))
 
       if (!res.ok) {
-        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la suppression')
+        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? t.errors.delete)
         return
       }
 
       const result = (data as { data?: { mode?: string; player?: PlayerApi } }).data
       if (result?.mode === 'deactivated' && result.player) {
         replacePlayer(result.player)
-        setDeleteError('Suppression impossible car ce joueur a un historique. Il a ete desactive a la place.')
+        setDeleteError(t.errors.fallbackDeactivate)
       } else {
         setRows((current) => current.filter((player) => player.id !== playerId))
       }
 
       setConfirmDel(null)
     } catch {
-      setDeleteError('Erreur reseau, veuillez reessayer')
+      setDeleteError(t.errors.network)
     } finally {
       setIsSaving(false)
     }
@@ -207,8 +212,8 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
     const raw = editingJoinedAt.value.trim()
     setEditingJoinedAt(null)
 
-    const current = rows.find((p) => p.id === playerId)
-    if (raw === (current?.joinedAt ?? '')) return
+    const currentPlayer = rows.find((player) => player.id === playerId)
+    if (raw === (currentPlayer?.joinedAt ?? '')) return
 
     await handlePatch(playerId, { joinedAt: raw === '' ? null : raw })
   }
@@ -234,7 +239,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la mise a jour de la profession')
+        setDeleteError((data as { error?: { message?: string } })?.error?.message ?? t.errors.updateProfession)
         return
       }
 
@@ -247,7 +252,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
         }))
       }
     } catch {
-      setDeleteError('Erreur reseau, veuillez reessayer')
+      setDeleteError(t.errors.network)
     } finally {
       setIsSaving(false)
     }
@@ -271,24 +276,26 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        <StatPill label="Actifs" value={String(activeCount)} />
-        <StatPill label="Inactifs" value={String(inactiveCount)} dim />
+        <StatPill label={t.stats.active} value={String(activeCount)} />
+        <StatPill label={t.stats.inactive} value={String(inactiveCount)} dim />
         {PLAYER_RANKS.slice().reverse().map((rank) => (
           <StatPill key={rank} label={rank} value={String(rankCounts[rank] ?? 0)} />
         ))}
         {unclassifiedCount > 0 && (
-          <StatPill label="Non class\u00E9s" value={String(unclassifiedCount)} dim />
+          <StatPill label={t.stats.unranked} value={String(unclassifiedCount)} dim />
         )}
       </div>
 
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 card-shadow">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <p className="label-sm">Repartition par level</p>
-            <p className="text-xs text-[var(--color-text-muted)]">Joueurs actifs uniquement</p>
+            <p className="label-sm">{t.levelDistributionTitle}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">{t.levelDistributionSubtitle}</p>
           </div>
           {unfilledLevels > 0 && (
-            <Badge variant="neutral">{unfilledLevels} sans level</Badge>
+            <Badge variant="neutral">
+              {unfilledLevels} {t.noLevelValue}
+            </Badge>
           )}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -304,12 +311,14 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                     : 'border-[var(--color-border)] bg-[var(--color-surface-raised)] hover:border-[var(--color-accent)]/50',
                 ].join(' ')}
               >
-                <span className="text-sm font-semibold text-[var(--color-text-primary)]">Lvl {level}</span>
-                <span className="text-xs text-[var(--color-text-muted)]">{count} joueur{count > 1 ? 's' : ''}</span>
+                <span className="text-sm font-semibold text-[var(--color-text-primary)]">{t.levelLabel} {level}</span>
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  {count} {t.playersCount}{count > 1 ? 's' : ''}
+                </span>
               </button>
             ))
           ) : (
-            <p className="text-sm text-[var(--color-text-muted)]">Aucun level renseigne</p>
+            <p className="text-sm text-[var(--color-text-muted)]">{t.noLevel}</p>
           )}
         </div>
       </div>
@@ -340,16 +349,16 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
           ].join(' ')}
         >
           <p className="text-xs font-bold text-[var(--color-text-primary)]">{unclassifiedCount}</p>
-          <p className="text-[0.6rem] text-[var(--color-text-muted)] mt-0.5">Non class\u00E9</p>
+          <p className="text-[0.6rem] text-[var(--color-text-muted)] mt-0.5">{t.unranked}</p>
         </button>
       </div>
 
       <Card padding="none">
         <div className="p-5 pb-3">
           <CardHeader
-            title="Liste des joueurs"
-            subtitle={`${filtered.length} / ${rows.length} joueurs`}
-            action={
+            title={t.singlePlayer}
+            subtitle={`${filtered.length} / ${rows.length} ${t.playersCount}${rows.length > 1 ? 's' : ''}`}
+            action={(
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden text-xs">
                   {(['all', 'active', 'inactive'] as const).map((filter) => (
@@ -363,7 +372,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                           : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)]',
                       ].join(' ')}
                     >
-                      {filter === 'all' ? 'Tous' : filter === 'active' ? 'Actifs' : 'Inactifs'}
+                      {t.statusFilters[filter]}
                     </button>
                   ))}
                 </div>
@@ -372,20 +381,17 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                     onClick={() => setShowAdd(true)}
                     className="px-3 py-1.5 text-xs bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors"
                   >
-                    + Ajouter
+                    {t.addPlayer}
                   </button>
                 )}
               </div>
-            }
+            )}
           />
         </div>
 
         {canManage && showAdd && (
           <div className="mx-5 mb-4">
-            <AddPlayerForm
-              onCancel={() => setShowAdd(false)}
-              onCreated={handlePlayerCreated}
-            />
+            <AddPlayerForm locale={locale} onCancel={() => setShowAdd(false)} onCreated={handlePlayerCreated} />
           </div>
         )}
 
@@ -400,14 +406,14 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-y border-[var(--color-border)] bg-[var(--color-surface-raised)]/40">
-                <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Joueur</th>
-                <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Rang actuel</th>
-                <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">Suggestion app</th>
-                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Profession</th>
-                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Niv. g\u00E9n\u00E9ral</th>
-                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Arriv\u00E9e</th>
-                <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">Statut</th>
-                {canManage && <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">Actions</th>}
+                <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">{t.columns.player}</th>
+                <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">{t.columns.currentRank}</th>
+                <th className="px-5 py-3 text-left text-[var(--color-text-muted)] font-medium text-xs">{t.columns.suggestedRank}</th>
+                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">{t.columns.profession}</th>
+                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">{t.columns.generalLevel}</th>
+                <th className="px-4 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">{t.columns.joinedAt}</th>
+                <th className="px-5 py-3 text-center text-[var(--color-text-muted)] font-medium text-xs">{t.columns.status}</th>
+                {canManage && <th className="px-5 py-3 text-right text-[var(--color-text-muted)] font-medium text-xs">{t.columns.actions}</th>}
               </tr>
             </thead>
             <tbody>
@@ -436,7 +442,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                       <span
                         onClick={() => canManage ? setEditingName({ id: player.id, value: player.name }) : undefined}
                         className={canManage ? 'cursor-text hover:underline decoration-dotted underline-offset-2' : ''}
-                        title={canManage ? 'Cliquer pour modifier' : undefined}
+                        title={canManage ? t.clickToEdit : undefined}
                       >
                         {player.name}
                       </span>
@@ -446,13 +452,14 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                   <td className="px-5 py-3">
                     {canManage ? (
                       <RankSelect
+                        locale={locale}
                         value={player.currentRank}
                         disabled={isSaving}
                         onChange={(rank) => void handleRankChange(player.id, rank)}
                       />
                     ) : player.currentRank ? (
                       <Badge variant={RANK_BADGE_VARIANT[player.currentRank as PlayerRank]}>
-                        {RANK_SHORT[player.currentRank as PlayerRank]}
+                        {t.rankShort[player.currentRank as PlayerRank]}
                       </Badge>
                     ) : (
                       <span className="text-xs text-[var(--color-text-muted)]">{EMPTY_MARK}</span>
@@ -463,7 +470,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                     {player.suggestedRank ? (
                       <span title={player.rankReason ?? undefined}>
                         <Badge variant={RANK_BADGE_VARIANT[player.suggestedRank as PlayerRank]}>
-                          {RANK_SHORT[player.suggestedRank as PlayerRank]}
+                          {t.rankShort[player.suggestedRank as PlayerRank]}
                         </Badge>
                         {player.rankReason && (
                           <span className="ml-1 text-[0.6rem] text-[var(--color-text-muted)] cursor-help">{INFO_MARK}</span>
@@ -499,20 +506,14 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                           }}
                           className="w-10 text-xs px-1 py-0.5 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none"
                         />
-                        <button
-                          onClick={() => void handleSaveProfession(player.id)}
-                          className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-white"
-                        >{CHECK_MARK}</button>
-                        <button
-                          onClick={() => setEditingProf(null)}
-                          className="text-xs px-1.5 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)]"
-                        >{CROSS_MARK}</button>
+                        <button onClick={() => void handleSaveProfession(player.id)} className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-white">{CHECK_MARK}</button>
+                        <button onClick={() => setEditingProf(null)} className="text-xs px-1.5 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)]">{CROSS_MARK}</button>
                       </span>
                     ) : player.professionKey ? (
                       <span
                         onClick={() => canManage ? setEditingProf({ id: player.id, key: player.professionKey!, level: String(player.professionLevel ?? 1) }) : undefined}
                         className={`inline-flex flex-col items-center gap-0.5 ${canManage ? 'cursor-pointer hover:opacity-70' : ''}`}
-                        title={canManage ? 'Cliquer pour modifier' : undefined}
+                        title={canManage ? t.clickToEdit : undefined}
                       >
                         <span className="text-base leading-none">
                           {PROFESSION_ICON[player.professionKey] ?? UNKNOWN_PROFESSION_ICON}
@@ -523,11 +524,11 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                       </span>
                     ) : (
                       <span
-                        onClick={() => canManage ? setEditingProf({ id: player.id, key: 'fighter', level: '1' }) : undefined}
+                        onClick={() => canManage ? setEditingProf({ id: player.id, key: 'warlord', level: '1' }) : undefined}
                         className={`text-xs ${canManage ? 'cursor-pointer text-[var(--color-accent)] hover:underline' : 'text-[var(--color-text-muted)]'}`}
-                        title={canManage ? 'Cliquer pour ajouter' : undefined}
+                        title={canManage ? t.clickToAdd : undefined}
                       >
-                        {canManage ? '+ ajouter' : EMPTY_MARK}
+                        {canManage ? t.addInline : EMPTY_MARK}
                       </span>
                     )}
                   </td>
@@ -552,7 +553,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                       <span
                         onClick={() => canManage ? setEditingLevel({ id: player.id, value: String(player.generalLevel) }) : undefined}
                         className={`text-xs font-semibold text-[var(--color-text-primary)] ${canManage ? 'cursor-text hover:underline decoration-dotted underline-offset-2' : ''}`}
-                        title={canManage ? 'Cliquer pour modifier' : undefined}
+                        title={canManage ? t.clickToEdit : undefined}
                       >
                         {player.generalLevel}
                       </span>
@@ -560,9 +561,9 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                       <span
                         onClick={() => canManage ? setEditingLevel({ id: player.id, value: '' }) : undefined}
                         className={`text-xs ${canManage ? 'cursor-pointer text-[var(--color-accent)] hover:underline' : 'text-[var(--color-text-muted)]'}`}
-                        title={canManage ? 'Cliquer pour ajouter' : undefined}
+                        title={canManage ? t.clickToAdd : undefined}
                       >
-                        {canManage ? '+ ajouter' : EMPTY_MARK}
+                        {canManage ? t.addInline : EMPTY_MARK}
                       </span>
                     )}
                   </td>
@@ -585,16 +586,16 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                       <span
                         onClick={() => canManage ? setEditingJoinedAt({ id: player.id, value: player.joinedAt ?? '' }) : undefined}
                         className={`text-xs tabular-nums ${canManage ? 'cursor-text hover:underline decoration-dotted underline-offset-2' : ''} ${!player.joinedAt ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text-primary)]'}`}
-                        title={canManage ? 'Cliquer pour modifier' : undefined}
+                        title={canManage ? t.clickToEdit : undefined}
                       >
-                        {player.joinedAt ? formatDate(player.joinedAt) : EMPTY_MARK}
+                        {player.joinedAt ? formatDate(player.joinedAt, locale) : EMPTY_MARK}
                       </span>
                     )}
                   </td>
 
                   <td className="px-5 py-3 text-center">
                     <Badge variant={player.isActive ? 'success' : 'neutral'}>
-                      {player.isActive ? 'Actif' : 'Inactif'}
+                      {player.isActive ? t.status.active : t.status.inactive}
                     </Badge>
                   </td>
 
@@ -602,19 +603,19 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                     <td className="px-5 py-3 text-right">
                       {confirmDelId === player.id ? (
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="text-xs text-[var(--color-danger)] mr-1">Supprimer ?</span>
+                          <span className="text-xs text-[var(--color-danger)] mr-1">{t.deletePrompt}</span>
                           <button
                             onClick={() => void handleDelete(player.id)}
                             disabled={isSaving}
                             className="text-xs px-2.5 py-1 rounded-md bg-[var(--color-danger)] text-white hover:opacity-90 disabled:opacity-40"
                           >
-                            {isSaving ? ELLIPSIS : 'Confirmer'}
+                            {isSaving ? ELLIPSIS : t.confirm}
                           </button>
                           <button
                             onClick={() => setConfirmDel(null)}
                             className="text-xs px-2.5 py-1 rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)]"
                           >
-                            Annuler
+                            {t.cancel}
                           </button>
                         </span>
                       ) : (
@@ -624,14 +625,14 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
                             disabled={isSaving}
                             className="text-xs px-2.5 py-1 rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-40"
                           >
-                            {player.isActive ? 'D\u00E9sactiver' : 'R\u00E9activer'}
+                            {player.isActive ? t.deactivate : t.reactivate}
                           </button>
                           <button
                             onClick={() => setConfirmDel(player.id)}
                             disabled={isSaving}
                             className="text-xs px-2.5 py-1 rounded-md border border-[var(--color-danger)]/30 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors disabled:opacity-40"
                           >
-                            Supprimer
+                            {t.delete}
                           </button>
                         </span>
                       )}
@@ -642,7 +643,7 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={canManage ? 8 : 7} className="px-5 py-10 text-center text-sm text-[var(--color-text-muted)]">
-                    Aucun joueur correspondant
+                    {t.noPlayers}
                   </td>
                 </tr>
               )}
@@ -654,11 +655,10 @@ export function PlayersTable({ players, canManage }: PlayersTableProps) {
   )
 }
 
-/** Formate "YYYY-MM-DD" vers "DD/MM/YYYY". */
-function formatDate(iso: string): string {
-  const [y, m, d] = iso.split('-')
-  if (!y || !m || !d) return iso
-  return `${d}/${m}/${y}`
+function formatDate(iso: string, locale: 'fr' | 'en'): string {
+  const date = new Date(`${iso}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-GB')
 }
 
 function StatPill({ label, value, dim }: { label: string; value: string; dim?: boolean }) {
@@ -673,14 +673,18 @@ function StatPill({ label, value, dim }: { label: string; value: string; dim?: b
 }
 
 function RankSelect({
+  locale,
   value,
   onChange,
   disabled,
 }: {
+  locale: 'fr' | 'en'
   value: string | null
   onChange: (rank: PlayerRank | null) => void
   disabled?: boolean
 }) {
+  const t = getPlayersMessages(locale)
+
   return (
     <select
       value={value ?? ''}
@@ -693,24 +697,27 @@ function RankSelect({
           : 'border-[var(--color-border)] text-[var(--color-text-muted)]',
       ].join(' ')}
     >
-      <option value="">{EMPTY_MARK} Non class\u00E9</option>
+      <option value="">{EMPTY_MARK} {t.unranked}</option>
       {PLAYER_RANKS.slice().reverse().map((rank) => (
-        <option key={rank} value={rank}>{RANK_LABEL[rank]}</option>
+        <option key={rank} value={rank}>{t.rankLabels[rank]}</option>
       ))}
     </select>
   )
 }
 
 function AddPlayerForm({
+  locale,
   onCancel,
   onCreated,
 }: {
+  locale: 'fr' | 'en'
   onCancel: () => void
   onCreated: (player: PlayerApi) => void
 }) {
+  const t = getPlayersMessages(locale)
   const [name, setName] = useState('')
   const [rank, setRank] = useState<string>('')
-  const [joinedAt, setJoinedAt] = useState(() => new Date().toISOString().split('T')[0])
+  const [joinedAt, setJoinedAt] = useState(() => new Date().toISOString().split('T')[0] ?? '')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -734,17 +741,17 @@ function AddPlayerForm({
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        throw new Error((data as { error?: { message?: string } })?.error?.message ?? 'Erreur lors de la creation')
+        throw new Error((data as { error?: { message?: string } })?.error?.message ?? t.addForm.createError)
       }
 
       const player = (data as { data?: PlayerApi }).data
       if (!player) {
-        throw new Error('Reponse invalide du serveur')
+        throw new Error(t.addForm.invalidResponse)
       }
 
       onCreated(player)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+      setError(err instanceof Error ? err.message : t.errors.unknown)
     } finally {
       setLoading(false)
     }
@@ -753,30 +760,30 @@ function AddPlayerForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 p-4 rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-surface-raised)]">
       <div className="flex-1 min-w-[160px]">
-        <label className="label-xs block mb-1">Nom *</label>
+        <label className="label-xs block mb-1">{t.addForm.name}</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Pseudo in-game"
+          placeholder={t.addForm.placeholder}
           required
           className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
         />
       </div>
       <div className="min-w-[160px]">
-        <label className="label-xs block mb-1">Rang initial</label>
+        <label className="label-xs block mb-1">{t.addForm.initialRank}</label>
         <select
           value={rank}
           onChange={(e) => setRank(e.target.value)}
           className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
         >
-          <option value="">{EMPTY_MARK} Non class\u00E9</option>
+          <option value="">{EMPTY_MARK} {t.unranked}</option>
           {PLAYER_RANKS.slice().reverse().map((playerRank) => (
-            <option key={playerRank} value={playerRank}>{RANK_LABEL[playerRank]}</option>
+            <option key={playerRank} value={playerRank}>{t.rankLabels[playerRank]}</option>
           ))}
         </select>
       </div>
       <div className="min-w-[140px]">
-        <label className="label-xs block mb-1">Date d&apos;arriv\u00E9e</label>
+        <label className="label-xs block mb-1">{t.addForm.joinedAt}</label>
         <input
           type="date"
           value={joinedAt}
@@ -790,14 +797,14 @@ function AddPlayerForm({
           disabled={loading || !name.trim()}
           className="px-4 py-2 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-40"
         >
-          {loading ? ELLIPSIS : 'Cr\u00E9er'}
+          {loading ? ELLIPSIS : t.addForm.create}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="px-4 py-2 text-sm border border-[var(--color-border)] text-[var(--color-text-muted)] rounded-lg hover:bg-[var(--color-surface-raised)] transition-colors"
         >
-          Annuler
+          {t.cancel}
         </button>
       </div>
       {error && <p className="w-full text-xs text-[var(--color-danger)]">{error}</p>}
