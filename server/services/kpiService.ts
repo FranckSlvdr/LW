@@ -1,12 +1,11 @@
 import 'server-only'
-import { unstable_cache, revalidateTag } from 'next/cache'
-import { after } from 'next/server'
+import { unstable_cache } from 'next/cache'
 import { IS_VERCEL_RUNTIME, USE_NEXT_DATA_CACHE } from '@/server/config/runtime'
 import { findAllPlayers } from '@/server/repositories/playerRepository'
 import { findScoresByWeek } from '@/server/repositories/scoreRepository'
 import { findWeekById, findAllWeeks } from '@/server/repositories/weekRepository'
 import { findVsDaysByWeekAsMap } from '@/server/repositories/vsDayRepository'
-import { findSnapshot, findStoredSnapshot, saveSnapshot } from '@/server/repositories/analyticsRepository'
+import { findSnapshot, saveSnapshot } from '@/server/repositories/analyticsRepository'
 import { computeKpis, getTopPlayers, getFlopPlayers } from '@/server/engines/kpiEngine'
 import { generateInsights } from '@/server/engines/insightEngine'
 import { NotFoundError } from '@/lib/errors'
@@ -193,11 +192,6 @@ export async function computeDashboardCore(weekId: number): Promise<DashboardSna
   return { summary, allKpis, prevKpis, playerRanks, levelBuckets }
 }
 
-// ─── Background recompute guard ──────────────────────────────────────────────
-// Prevents multiple concurrent after() recomputes for the same weekId on the
-// same Lambda instance (Fluid Compute reuses instances across requests).
-const recomputingWeeks = new Set<number>()
-
 // ─── Cached read (snapshot + Next.js cache) ───────────────────────────────────
 
 /**
@@ -224,32 +218,6 @@ async function computeOrReadSnapshot(weekId: number): Promise<DashboardSnapshot>
       })
     }
     return snapshot
-  }
-
-  if (IS_VERCEL_RUNTIME) {
-    const storedSnapshot = await findStoredSnapshot(weekId)
-    if (storedSnapshot) {
-      logger.warn('Serving stale dashboard snapshot on Vercel', { weekId })
-      // Kick off a background recompute so the NEXT request gets fresh data.
-      // Guard: skip if a recompute for this weekId is already in progress on
-      // this Lambda instance — prevents thundering herd when multiple concurrent
-      // requests all see the stale snapshot and each try to recompute.
-      if (!recomputingWeeks.has(weekId)) {
-        recomputingWeeks.add(weekId)
-        after(async () => {
-          try {
-            const fresh = await computeDashboardCore(weekId)
-            await saveSnapshot(weekId, fresh)
-            try { revalidateTag(`week-kpi-${weekId}`, 'max') } catch {}
-          } catch (err) {
-            logger.error('Background snapshot recompute failed', { weekId, err: String(err) })
-          } finally {
-            recomputingWeeks.delete(weekId)
-          }
-        })
-      }
-      return storedSnapshot
-    }
   }
 
   // Layer 3: full computation
